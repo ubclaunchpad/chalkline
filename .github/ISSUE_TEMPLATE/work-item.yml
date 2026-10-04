@@ -1,0 +1,58 @@
+name: Work item
+description: Propose a feature, report a bug, or track a focused engineering task.
+title: "[Area] Short, specific outcome"
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type of work
+      options:
+        - Bug
+        - Feature
+        - Engineering task
+        - Design task
+        - Documentation
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - Canvas and interaction
+        - Collaboration and infrastructure
+        - Semantics and backend
+        - Product design
+        - Cross-cutting
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: Describe the user or developer need and the current behavior. For a bug, include expected and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome and scope
+      description: Describe the smallest useful result. Include relevant constraints or links; leave implementation choices open when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable results. For a significant user journey, use Given / When / Then scenarios.
+      placeholder: |
+        - Given ...
+          When ...
+          Then ...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Reproduction steps or supporting context
+      description: For a bug, include steps, environment, and safe logs or screenshots. For other work, add design links, dependencies, or open questions. Do not include secrets or private board data.
