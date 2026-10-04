@@ -8,6 +8,7 @@ Chalkline is a collaborative workspace for practicing software architecture. It 
 - [Architecture](docs/architecture.md): The canvas, semantic graph, synchronization, and persistence plan.
 - [Roadmap](docs/roadmap.md): Product directions and questions for scoping the two terms.
 - [Team workflow](docs/workflow.md): Subteam ownership, branches, pull requests, reviews, and quality expectations.
+- [Coding agent guidance](AGENTS.md): Implementation expectations and agent boundaries.
 
 Most decisions are open to debate and change. We want everyone to get the most from the experience and enjoy building the project together.
 
