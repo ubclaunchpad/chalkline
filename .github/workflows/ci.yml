@@ -74,3 +74,6 @@ jobs:
           go-version-file: server/go.mod
           cache: false
       - run: make check-workflows
+      # Deliberate error: this job has no matrix, so actionlint must reject matrix.os.
+      - name: Check on ${{ matrix.os }}
+        run: echo done
