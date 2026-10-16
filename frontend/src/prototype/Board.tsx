@@ -19,8 +19,14 @@ import {
   type DragEvent,
 } from 'react'
 import { isComponentData, type ComponentData, type Kind } from './catalog'
-import { createComponent, updateComponent } from './elements'
+import {
+  addMissingIcons,
+  componentIdOf,
+  createComponent,
+  updateComponent,
+} from './elements'
 import { exampleElements } from './example'
+import { iconFiles } from './icons'
 import { deriveGraph, reviewGraph } from './graph'
 import Palette, { DRAG_MIME } from './Palette'
 import ShareDialog from './ShareDialog'
@@ -64,10 +70,11 @@ export default function Board({
     return created
   })
   const [initialData] = useState(() => {
-    const elements = loadElements(boardId)
+    const elements = addMissingIcons(loadElements(boardId))
     return {
       elements,
       appState: { viewBackgroundColor: '#ffffff' },
+      files: iconFiles(),
       scrollToContent: elements.length > 0,
     }
   })
@@ -127,8 +134,7 @@ export default function Board({
         selectionKey.current = key
         setSelectedIds(ids)
         // Selecting one component jumps to its properties.
-        const only = ids.length === 1 && els.find((e) => e.id === ids[0])
-        if (only && isComponentData(only.customData) && !keepTab.current) {
+        if (selectedComponentId(ids, els) && !keepTab.current) {
           setTab('properties')
         }
         keepTab.current = false
@@ -175,8 +181,8 @@ export default function Board({
   const findings = useMemo(() => reviewGraph(graph), [graph])
 
   const selected = useMemo(() => {
-    if (selectedIds.length !== 1) return null
-    const el = elements.find((e) => e.id === selectedIds[0])
+    const id = selectedComponentId(selectedIds, elements)
+    const el = id && elements.find((e) => e.id === id)
     return el && isComponentData(el.customData)
       ? { id: el.id, data: el.customData }
       : null
@@ -195,9 +201,10 @@ export default function Board({
       )
       const scene = api.getSceneElementsIncludingDeleted()
       const { id, created } = createComponent(kind, point, scene, !client)
+      const next = [...scene, ...created]
       api.updateScene({
-        elements: [...scene, ...created],
-        appState: { selectedElementIds: { [id]: true } },
+        elements: next,
+        appState: selectionFor([id], next),
         captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       })
       api.setActiveTool({ type: 'selection' })
@@ -234,11 +241,7 @@ export default function Board({
       const targets = api.getSceneElements().filter((e) => ids.includes(e.id))
       keepTab.current = true
       api.updateScene({
-        appState: {
-          selectedElementIds: Object.fromEntries(
-            ids.map((id) => [id, true as const]),
-          ),
-        },
+        appState: selectionFor(ids, api.getSceneElements()),
       })
       if (targets.length) api.scrollToContent(targets, { animate: true })
     },
@@ -488,4 +491,45 @@ function NotFound() {
       </div>
     </main>
   )
+}
+
+/** The single component a selection covers (its box, label, and icon), if any. */
+function selectedComponentId(
+  ids: string[],
+  elements: readonly ExcalidrawElement[],
+): string | undefined {
+  if (ids.length === 0) return undefined
+  const byId = new Map(elements.map((e) => [e.id, e]))
+  const owners = new Set(
+    ids.map((id) => {
+      const el = byId.get(id)
+      return el ? componentIdOf(el, byId) : undefined
+    }),
+  )
+  const [only] = owners
+  return owners.size === 1 ? only : undefined
+}
+
+/** Selection state for elements, selecting whole component groups. */
+function selectionFor(ids: string[], elements: readonly ExcalidrawElement[]) {
+  const byId = new Map(elements.map((e) => [e.id, e]))
+  const groups = new Set(
+    ids.flatMap((id) => {
+      const el = byId.get(id)
+      return el && isComponentData(el.customData) ? el.groupIds : []
+    }),
+  )
+  const selected = elements.filter(
+    (e) =>
+      !e.isDeleted &&
+      (ids.includes(e.id) || e.groupIds.some((g) => groups.has(g))),
+  )
+  return {
+    selectedElementIds: Object.fromEntries(
+      selected.map((e) => [e.id, true as const]),
+    ),
+    selectedGroupIds: Object.fromEntries(
+      [...groups].map((g) => [g, true as const]),
+    ),
+  }
 }

@@ -7,6 +7,7 @@ import {
   type FieldDef,
   type Kind,
 } from './catalog'
+import ComponentIcon from './ComponentIcon'
 import { kindLabel, type Finding, type Graph } from './graph'
 
 type Props = {
@@ -130,11 +131,7 @@ function ComponentForm({
   return (
     <div className="space-y-5 text-sm">
       <div className="flex items-center gap-3">
-        <span
-          className="h-8 w-10 rounded-md border-2"
-          style={{ background: def.background, borderColor: def.stroke }}
-          aria-hidden
-        />
+        <ComponentIcon kind={data.kind} size="lg" />
         <div>
           <p className="text-xs text-slate-500">{def.label}</p>
           <p className="font-semibold">{data.name}</p>

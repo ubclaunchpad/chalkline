@@ -3,7 +3,8 @@ import { defaultProps, type ComponentData, type Kind } from './catalog'
 import {
   COMPONENT_HEIGHT,
   COMPONENT_WIDTH,
-  componentSkeleton,
+  componentSkeletons,
+  groupLabels,
 } from './elements'
 
 type Spec = {
@@ -50,10 +51,10 @@ export function exampleElements() {
   const pos = new Map(
     NODES.map((n) => [n.id, { x: n.col * colGap, y: n.row * rowGap }]),
   )
-  return convertToExcalidrawElements(
+  const elements = convertToExcalidrawElements(
     [
-      ...NODES.map((n) =>
-        componentSkeleton(
+      ...NODES.flatMap((n) =>
+        componentSkeletons(
           {
             v: 1,
             kind: n.kind,
@@ -90,4 +91,5 @@ export function exampleElements() {
     ],
     { regenerateIds: false },
   )
+  return groupLabels(elements)
 }

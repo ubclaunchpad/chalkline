@@ -5,6 +5,7 @@ import {
   type ComponentData,
   type Kind,
 } from './catalog'
+import { iconOwner } from './elements'
 
 export type GraphNode = {
   id: string
@@ -28,13 +29,20 @@ export function deriveGraph(elements: readonly ExcalidrawElement[]): Graph {
     nodes.push({ id: e.id, kind, name, props })
   }
   const nodeIds = new Set(nodes.map((n) => n.id))
+  // An arrow that snapped to a component's icon still connects the component.
+  const owners = new Map<string, string>()
+  for (const e of elements) {
+    const owner = iconOwner(e)
+    if (owner) owners.set(e.id, owner)
+  }
+  const resolve = (id: string | undefined) => (id && owners.get(id)) ?? id
 
   const edges: GraphEdge[] = []
   const danglingArrows: string[] = []
   for (const e of elements) {
     if (e.isDeleted || e.type !== 'arrow') continue
-    const from = e.startBinding?.elementId
-    const to = e.endBinding?.elementId
+    const from = resolve(e.startBinding?.elementId)
+    const to = resolve(e.endBinding?.elementId)
     if (from && to && nodeIds.has(from) && nodeIds.has(to))
       edges.push({ id: e.id, from, to })
     else danglingArrows.push(e.id)

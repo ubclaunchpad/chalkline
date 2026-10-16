@@ -1,4 +1,5 @@
 import { CATALOG, type Kind } from './catalog'
+import ComponentIcon from './ComponentIcon'
 
 export const DRAG_MIME = 'application/x-chalkline-kind'
 
@@ -24,11 +25,7 @@ export default function Palette({ onAdd }: { onAdd: (kind: Kind) => void }) {
               className="flex w-full cursor-grab items-start gap-3 rounded-lg px-2 py-2 text-left hover:bg-slate-100 active:cursor-grabbing"
               title={def.description}
             >
-              <span
-                className="mt-0.5 h-5 w-7 shrink-0 rounded border-2"
-                style={{ background: def.background, borderColor: def.stroke }}
-                aria-hidden
-              />
+              <ComponentIcon kind={def.kind} size="sm" />
               <span>
                 <span className="block text-sm font-medium">{def.label}</span>
                 <span className="block text-xs leading-snug text-slate-500">
