@@ -26,6 +26,8 @@ A repository ruleset protects `dev` and `main`, so the review flow above is enfo
 - Pushing new commits dismisses earlier approvals, so an approval always covers the code that actually merges.
 - The three CI jobs must pass. A PR doesn't need to be rebased onto the latest `dev` first; CI runs again after each merge to catch combined breakage.
 
+Your own feature branches have no rules. Rebasing onto `dev` and force-pushing is normal there. Use `git push --force-with-lease` rather than `--force`: it refuses to push if the remote branch has commits you haven't fetched, such as a pairing partner's work, instead of silently deleting them. Coordinate before force-pushing a branch someone else also commits to.
+
 ## Quality expectations
 
 We aim to meet real-world engineering standards through comprehensive static and type checks, automated tests, and CI-based deployment. We recommend the same checks during development and review.
