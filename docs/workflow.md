@@ -17,6 +17,15 @@ The planned workflow uses `main` for stable releases and `dev` for integration. 
 
 Keep pull requests scoped so reviewers can understand them. Describe the problem, approach, tests run, and any change to the schema, sync protocol, or user experience. Designers should review changes that materially affect the interface.
 
+## Protected branches
+
+A repository ruleset protects `dev` and `main`, so the review flow above is enforced rather than just agreed on:
+
+- Changes arrive only through pull requests. Direct pushes, force pushes, and branch deletion are blocked for everyone, including admins.
+- Each PR needs one approving review, and every review conversation must be resolved before merging.
+- Pushing new commits dismisses earlier approvals, so an approval always covers the code that actually merges.
+- The three CI jobs must pass. A PR doesn't need to be rebased onto the latest `dev` first; CI runs again after each merge to catch combined breakage.
+
 ## Quality expectations
 
 We aim to meet real-world engineering standards through comprehensive static and type checks, automated tests, and CI-based deployment. We recommend the same checks during development and review.
@@ -43,4 +52,4 @@ Every pull request into `dev` or `main` runs [CI](../.github/workflows/ci.yml) o
 
 **Supply-chain safety.** Workflows request read-only permissions and pin each third-party action to a full commit SHA. A tag can be moved to point at different code, but a commit SHA can't. [Dependabot](../.github/dependabot.yml) opens one grouped PR each week for GitHub Actions, frontend packages, and Go modules. It waits seven days after each release before proposing it. Review these like any other PR: read the changelog for major versions and let CI run.
 
-**Adding a check.** Add it to the relevant `check-*` Makefile target so local runs and CI stay identical. Then explain in the PR what the check catches and how long it adds to the run. Planned additions include staticcheck, Postgres integration tests, secret scanning, and container builds (#12).
+**Adding a check.** Add it to the relevant `check-*` Makefile target so local runs and CI stay identical. Then explain in the PR what the check catches and how long it adds to the run. The ruleset requires CI jobs by name. If you add, rename, or remove a job, a lead must update the required checks in the same change. Otherwise PRs either wait forever for a check that no longer exists or merge without the new one. Planned additions include staticcheck, Postgres integration tests, secret scanning, and container builds (#12).
