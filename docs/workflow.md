@@ -22,7 +22,7 @@ Keep pull requests scoped so reviewers can understand them. Describe the problem
 Two repository rulesets protect `dev` and `main`, so the review flow above is enforced rather than just agreed on:
 
 - **CI and history** (no exceptions, admins included): direct pushes, force pushes, and branch deletion are blocked. The three CI jobs must pass. A PR doesn't need to be rebased onto the latest `dev` first; CI runs again after each merge to catch combined breakage.
-- **PR review:** changes arrive only through pull requests. Each PR needs one approving review, and every review conversation must be resolved. Pushing new commits dismisses earlier approvals, so an approval always covers the code that actually merges.
+- **PR review:** changes arrive only through pull requests. Each PR needs two approving reviews, matching the flow above: a subteam reviewer and a final approval, and every review conversation must be resolved. Pushing new commits dismisses earlier approvals, so an approval always covers the code that actually merges.
 
 The 2026-2027 Execs team, which includes Owen and Alan, may skip the review requirement when merging a PR, for example to unblock urgent integration work. GitHub records each skip in the repository's rule insights. The exception doesn't cover CI or direct pushes. Leads should still ask for review whenever someone is available, because review is how the team learns the codebase.
 
