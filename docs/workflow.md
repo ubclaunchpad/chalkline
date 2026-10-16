@@ -33,7 +33,7 @@ Every pull request into `dev` or `main` runs [CI](../.github/workflows/ci.yml) o
 | Server | `gofmt`, `go mod tidy`, `go vet`, `go build`, `go test -race` | The race detector finds unsafe concurrent access. That matters most for room state shared between WebSocket connections. |
 | Workflows | [actionlint](https://github.com/rhysd/actionlint) on `.github/workflows` | CI configuration is code too, and a typo there can silently skip a check. |
 
-**Reproduce CI locally.** Each job runs one Makefile target, so `make check` runs the same checks on your machine. You can also run one job's checks with `make check-web`, `make check-server`, or `make check-workflows`. Run `make fmt` to fix formatting.
+**Reproduce CI locally.** Each job runs one Makefile target, so `make check` runs the same checks on your machine. You can also run one job's checks with `make check-web`, `make check-server`, or `make check-workflows`. Run `make fmt` to fix formatting. Install [shellcheck](https://www.shellcheck.net/) (for example `brew install shellcheck`) so your local actionlint also checks the shell scripts inside `run:` steps, as CI does.
 
 **When a check fails:**
 
