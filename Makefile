@@ -5,7 +5,7 @@
 -include .env
 export
 
-.PHONY: install dev dev-web dev-server db-up db-down fmt check check-web check-server
+.PHONY: install dev dev-web dev-server db-up db-down fmt check check-web check-server check-workflows
 
 install:
 	cd frontend && bun install --frozen-lockfile
@@ -30,7 +30,7 @@ fmt:
 	cd frontend && bun run format
 	cd server && gofmt -w .
 
-check: check-web check-server
+check: check-web check-server check-workflows
 
 check-web:
 	cd frontend && bun run lint
@@ -42,6 +42,13 @@ check-web:
 check-server:
 	@cd server && unformatted="$$(gofmt -l .)" && \
 		if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
+	cd server && go mod tidy -diff
 	cd server && go vet ./...
 	cd server && go build ./...
 	cd server && go test -race ./...
+
+# Lints .github/workflows. The version is pinned so everyone gets the same rules.
+ACTIONLINT_VERSION := v1.7.12
+
+check-workflows:
+	go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
