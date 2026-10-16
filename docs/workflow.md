@@ -19,12 +19,12 @@ Keep pull requests scoped so reviewers can understand them. Describe the problem
 
 ## Protected branches
 
-A repository ruleset protects `dev` and `main`, so the review flow above is enforced rather than just agreed on:
+Two repository rulesets protect `dev` and `main`, so the review flow above is enforced rather than just agreed on:
 
-- Changes arrive only through pull requests. Direct pushes, force pushes, and branch deletion are blocked for everyone, including admins.
-- Each PR needs one approving review, and every review conversation must be resolved before merging.
-- Pushing new commits dismisses earlier approvals, so an approval always covers the code that actually merges.
-- The three CI jobs must pass. A PR doesn't need to be rebased onto the latest `dev` first; CI runs again after each merge to catch combined breakage.
+- **CI and history** (no exceptions, admins included): direct pushes, force pushes, and branch deletion are blocked. The three CI jobs must pass. A PR doesn't need to be rebased onto the latest `dev` first; CI runs again after each merge to catch combined breakage.
+- **PR review:** changes arrive only through pull requests. Each PR needs one approving review, and every review conversation must be resolved. Pushing new commits dismisses earlier approvals, so an approval always covers the code that actually merges.
+
+The 2026-2027 Execs team, which includes Owen and Alan, may skip the review requirement when merging a PR, for example to unblock urgent integration work. GitHub records each skip in the repository's rule insights. The exception doesn't cover CI or direct pushes. Leads should still ask for review whenever someone is available, because review is how the team learns the codebase.
 
 Your own feature branches have no rules. Rebasing onto `dev` and force-pushing is normal there. Use `git push --force-with-lease` rather than `--force`: it refuses to push if the remote branch has commits you haven't fetched, such as a pairing partner's work, instead of silently deleting them. Coordinate before force-pushing a branch someone else also commits to.
 
