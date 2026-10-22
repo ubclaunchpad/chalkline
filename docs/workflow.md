@@ -15,6 +15,8 @@ Ownership identifies the first reviewers and decision makers for a change. Work 
 
 The planned workflow uses `main` for stable releases and `dev` for integration. Create `feature/<short-name>` from `dev`. At key integration points, including sprint boundaries, open a pull request to merge the feature into `dev`. A relevant subteam member gives the first review; Owen or Alan gives final approval. Owen and Alan merge reviewed releases from `dev` into `main`.
 
+`dev` is the repository's default branch, so new clones and pull requests start there. Write `Closes #123` in a PR description to link the issue and close it automatically when the PR merges into `dev`. If the issue needs more than one PR, write `Part of #123` in the earlier ones and `Closes #123` in the last. To link a branch from the start, use **Development → Create a branch** on the issue.
+
 Keep pull requests scoped so reviewers can understand them. Describe the problem, approach, tests run, and any change to the schema, sync protocol, or user experience. Designers should review changes that materially affect the interface.
 
 ## Protected branches

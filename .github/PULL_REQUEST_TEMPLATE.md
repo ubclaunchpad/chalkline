@@ -1,6 +1,8 @@
 ## Summary
 
-<!-- What changed, why, and which GitHub issue does it address? For PRs into dev, write "Issue: #123" and link the issue in GitHub's Development sidebar. Closing keywords work in PR descriptions only when the PR targets the default branch. -->
+<!-- What changed, why, and which GitHub issue does it address? Write "Closes #123" so the issue is linked and closes automatically when this PR merges into dev. Use "Part of #123" instead if the issue needs more PRs. -->
+
+Closes #
 
 ## Developer notes
 
