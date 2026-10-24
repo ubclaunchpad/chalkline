@@ -5,6 +5,49 @@ message format will be added with the server's WebSocket work (#26). If the
 format or the rule below needs to change, change this page in a PR and tag the
 owners of #26, #27, #28 and #29.
 
+## Transport implementation in progress
+
+Each tab connects once at `/ws?board=<boardId>`. One connection belongs to one
+room; clients with the same board ID share the same in-memory room. The server
+sends `{"type":"welcome","clientId":"c_..."}` first. It then forwards incoming
+messages unchanged to everyone else in that room, preserving text/binary type
+and never echoing to the sender. On disconnect it sends
+`{"type":"leave","clientId":"c_..."}` to the remaining clients and deletes an
+empty room. Reconnecting creates a new client ID; no board contents are stored.
+
+This is a transport scaffold, not the completed #26 application protocol. Board
+ID validation, JSON/type/payload validation, trusted `from` attribution, and
+application `error` replies are pending. The library's default 32 KiB read limit
+still applies and closes oversized connections; the ticket's 1 MB handling is
+not implemented. Default WebSocket origin checks remain enabled.
+
+Each client has a reader and a writer, connected to its room by a bounded
+outgoing queue of 64 messages. A full queue cancels that connection rather than
+blocking other participants or silently discarding edits. Writes have a
+10-second timeout. Cancellation stops both loops without closing the outgoing
+channel, avoiding sends to a closed channel during concurrent broadcasts.
+Server shutdown also cancels active connections. Recovery after disconnection
+is separate work; this scaffold cannot resynchronize a slow client's board.
+
+The transport tests cover these observable scenarios:
+
+```gherkin
+Scenario: Participants exchange messages within a board
+  Given Alice, Bob, and Carol are on board a and Dan is on board b
+  When Alice and Bob send messages
+  Then the other participants on board a receive those messages
+  And no sender receives its own message
+  And Dan receives no messages from board a
+
+Scenario: A participant disconnects
+  Given Alice and Bob are on the same board
+  When Alice disconnects
+  Then Bob receives one leave message identifying Alice
+  And Bob can keep exchanging messages with another participant
+  When all participants disconnect
+  Then the room is removed
+```
+
 ## Which edit wins
 
 Two people can change the same shape at the same moment. Every browser, and

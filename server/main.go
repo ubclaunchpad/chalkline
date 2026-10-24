@@ -53,6 +53,9 @@ func run(ctx context.Context, getenv func(string) string) error {
 		Addr:              ":" + cfg.port,
 		Handler:           httpapi.NewHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
+		// HTTP Shutdown does not close upgraded WebSockets. Propagate shutdown
+		// cancellation into request contexts so their read/write loops also stop.
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 
 	serveErr := make(chan error, 1)
