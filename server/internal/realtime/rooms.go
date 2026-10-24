@@ -1,12 +1,9 @@
 package realtime
 
-import (
-	"sync"
-
-	"github.com/coder/websocket"
-)
+import "sync"
 
 type Room struct {
 	mu      sync.Mutex
-	clients map[string]*websocket.Conn // client ID → live connection
+	clients map[string]*Client // client ID → connected client
 }
+
