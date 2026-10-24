@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/coder/websocket"
@@ -12,8 +13,7 @@ const (
 	writeTimeout     = 10 * time.Second
 )
 
-// A message keeps its WebSocket type because this transport layer does not yet
-// interpret application JSON. Treat data as immutable once it is queued.
+// Treat encoded message data as immutable once it is queued for recipients.
 type message struct {
 	kind websocket.MessageType
 	data []byte
@@ -55,12 +55,35 @@ func (c *Client) run(ctx context.Context, room *Room) {
 
 func (c *Client) readLoop(ctx context.Context, room *Room) {
 	for {
-		kind, data, err := c.conn.Read(ctx)
+		kind, reader, err := c.conn.Reader(ctx)
 		if err != nil {
 			return
 		}
-		// TODO: Validate application messages and attach the trusted sender ID.
-		room.broadcast(c, message{kind: kind, data: data})
+		// Read at most the limit plus one byte, so oversized messages never get
+		// fully buffered. The extra byte distinguishes exactly-at-limit messages.
+		data, err := io.ReadAll(io.LimitReader(reader, maxMessageBytes+1))
+		if err != nil {
+			return
+		}
+		if len(data) > maxMessageBytes {
+			c.enqueue(errorMessage("message too large"))
+			// Consume the rest before reading the next message. Discarding streams
+			// the bytes without retaining them; cancellation still stops this read.
+			if _, err := io.Copy(io.Discard, reader); err != nil {
+				return
+			}
+			continue
+		}
+		if kind != websocket.MessageText {
+			c.enqueue(errorMessage("message must be text JSON"))
+			continue
+		}
+		msg, err := prepareMessage(data, c.id)
+		if err != nil {
+			c.enqueue(errorMessage(err.Error()))
+			continue
+		}
+		room.broadcast(c, msg)
 	}
 }
 

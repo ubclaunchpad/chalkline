@@ -75,6 +75,28 @@ func send(t *testing.T, conn *websocket.Conn, msg message) {
 	}
 }
 
+func changeMessage(marker string) message {
+	data, _ := json.Marshal(map[string]any{"type": "change", "elements": []any{}, "marker": marker})
+	return message{kind: websocket.MessageText, data: data}
+}
+
+func receiveChange(t *testing.T, conn *websocket.Conn) (string, string) {
+	t.Helper()
+	msg := receive(t, conn)
+	var change struct {
+		Type   string `json:"type"`
+		From   string `json:"from"`
+		Marker string `json:"marker"`
+	}
+	if err := json.Unmarshal(msg.data, &change); err != nil {
+		t.Fatal(err)
+	}
+	if msg.kind != websocket.MessageText || change.Type != "change" || change.From == "" {
+		t.Fatalf("expected attributed change, got %s", msg.data)
+	}
+	return change.Marker, change.From
+}
+
 func waitForEmptyHub(t *testing.T, hub *Hub) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -93,6 +115,7 @@ func waitForEmptyHub(t *testing.T, hub *Hub) {
 func TestConcurrentRelay(t *testing.T) {
 	_, url, _ := startServer(t)
 	var clients []*websocket.Conn
+	var clientIDs []string
 	ids := make(map[string]bool)
 	for range 3 {
 		conn, id := connect(t, url+"a")
@@ -101,6 +124,7 @@ func TestConcurrentRelay(t *testing.T) {
 		}
 		ids[id] = true
 		clients = append(clients, conn)
+		clientIDs = append(clientIDs, id)
 	}
 	outsider, _ := connect(t, url+"b")
 	partner, _ := connect(t, url+"b")
@@ -114,7 +138,7 @@ func TestConcurrentRelay(t *testing.T) {
 	for i, conn := range clients {
 		go func() {
 			for n := range count {
-				data := []byte(fmt.Sprintf("%d:%d", i, n)) // Deliberately not JSON.
+				data := changeMessage(fmt.Sprintf("%d:%d", i, n)).data
 				if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 					errors <- err
 					return
@@ -124,20 +148,20 @@ func TestConcurrentRelay(t *testing.T) {
 		}()
 	}
 	for i, conn := range clients {
-		want := make(map[string]bool)
+		want := make(map[string]string)
 		for sender := range clients {
 			if sender != i {
 				for n := range count {
-					want[fmt.Sprintf("%d:%d", sender, n)] = true
+					want[fmt.Sprintf("%d:%d", sender, n)] = clientIDs[sender]
 				}
 			}
 		}
 		for range 2 * count {
-			msg := receive(t, conn)
-			if msg.kind != websocket.MessageText || !want[string(msg.data)] {
-				t.Fatalf("client %d received unexpected or duplicate message %q", i, msg.data)
+			marker, from := receiveChange(t, conn)
+			if want[marker] != from {
+				t.Fatalf("client %d received unexpected message %q from %q", i, marker, from)
 			}
-			delete(want, string(msg.data))
+			delete(want, marker)
 		}
 	}
 	for range clients {
@@ -148,20 +172,10 @@ func TestConcurrentRelay(t *testing.T) {
 
 	// All board-a broadcasts finished before this marker. Board b must receive
 	// only its own traffic, rather than any earlier board-a messages.
-	marker := message{kind: websocket.MessageText, data: []byte("board-b-only")}
+	marker := changeMessage("board-b-only")
 	send(t, partner, marker)
-	if got := receive(t, outsider); string(got.data) != string(marker.data) {
-		t.Fatalf("cross-room message: %q", got.data)
-	}
-
-	// Until application validation exists, transport preserves binary data too.
-	binary := message{kind: websocket.MessageBinary, data: []byte{0, 1, 255}}
-	send(t, clients[0], binary)
-	for _, conn := range clients[1:] {
-		got := receive(t, conn)
-		if got.kind != binary.kind || string(got.data) != string(binary.data) {
-			t.Fatalf("binary message changed: %+v", got)
-		}
+	if got, _ := receiveChange(t, outsider); got != "board-b-only" {
+		t.Fatalf("cross-room message: %q", got)
 	}
 }
 
@@ -175,9 +189,9 @@ func TestDisconnectAndRejoin(t *testing.T) {
 		t.Fatalf("unexpected leave message: %s", leave.data)
 	}
 	carol, _ := connect(t, url+"a")
-	send(t, carol, message{kind: websocket.MessageText, data: []byte("still working")})
-	if got := receive(t, bob); string(got.data) != "still working" {
-		t.Fatalf("room stopped working or sent duplicate leave: %q", got.data)
+	send(t, carol, changeMessage("still working"))
+	if got, _ := receiveChange(t, bob); got != "still working" {
+		t.Fatalf("room stopped working or sent duplicate leave: %q", got)
 	}
 	_ = bob.CloseNow()
 	_ = carol.CloseNow()

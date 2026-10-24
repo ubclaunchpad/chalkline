@@ -20,13 +20,19 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// TODO: Validate the board ID before upgrading this HTTP request.
 	boardID := r.URL.Query().Get("board")
+	if err := validateBoardID(boardID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer conn.CloseNow()
+	// The library's read limit closes oversized connections. Our reader instead
+	// bounds allocation, replies with an error, and drains the rejected message.
+	conn.SetReadLimit(-1)
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
