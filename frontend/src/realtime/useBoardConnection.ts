@@ -12,7 +12,7 @@ export function syncBoardIdToUrl(): string {
   const boardId = getBoardId(url.search)
   if (url.searchParams.get('board') !== boardId) {
     url.searchParams.set('board', boardId)
-    window.history.replaceState(null, '', url)
+    window.history.replaceState(window.history.state, '', url)
   }
   return boardId
 }
