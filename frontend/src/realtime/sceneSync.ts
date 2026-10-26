@@ -87,7 +87,9 @@ export interface RemoteUpdateTracker {
 
 /**
  * Tracks exact remote element versions until Excalidraw reports the resulting
- * scene through `onChange`. A later local version is never suppressed.
+ * scene through `onChange`. Call `remember` with the remote merge winners that
+ * were applied to the scene, then pass the output of `changedElements` to
+ * `filter` before sending changes. A later local version is never suppressed.
  */
 export const createRemoteUpdateTracker = (): RemoteUpdateTracker => {
   const remoteVersions = new Map<string, ElementVersion>()

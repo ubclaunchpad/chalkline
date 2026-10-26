@@ -197,6 +197,20 @@ describe('createRemoteUpdateTracker', () => {
     expect(tracker.filter([localEdit])).toEqual([localEdit])
   })
 
+  it('does not suppress an alternate edit with the same version', () => {
+    const remote = rectangle({ id: 'shape', version: 2, versionNonce: 100 })
+    const alternateEdit = rectangle({
+      id: 'shape',
+      version: 2,
+      versionNonce: 200,
+    })
+    const tracker = createRemoteUpdateTracker()
+
+    tracker.remember([remote])
+
+    expect(tracker.filter([alternateEdit])).toEqual([alternateEdit])
+  })
+
   it('can forget all remembered remote versions', () => {
     const remote = rectangle({ id: 'shape', version: 2, versionNonce: 100 })
     const tracker = createRemoteUpdateTracker()
