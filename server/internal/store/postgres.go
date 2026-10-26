@@ -48,14 +48,15 @@ func (p *Postgres) SaveSnapshot(ctx context.Context, boardID string, elements js
 	return nil
 }
 
-// LatestSnapshot returns the most recently saved snapshot. Snapshots saved in
-// the same transaction share a created_at, so id breaks the tie.
+// LatestSnapshot returns the most recently saved snapshot. It orders by id, not
+// created_at: now() is the transaction start time, but SaveSnapshot's board
+// upsert serializes saves for the same board, so ids follow commit order.
 func (p *Postgres) LatestSnapshot(ctx context.Context, boardID string) (json.RawMessage, error) {
 	var elements []byte
 	err := p.pool.QueryRow(ctx,
 		`SELECT elements FROM board_snapshots
 		 WHERE board_id = $1
-		 ORDER BY created_at DESC, id DESC
+		 ORDER BY id DESC
 		 LIMIT 1`,
 		boardID,
 	).Scan(&elements)

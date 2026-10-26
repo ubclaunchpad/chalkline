@@ -13,8 +13,8 @@ CREATE TABLE board_snapshots (
 );
 
 -- Serves the latest-snapshot lookup and the board_id foreign key.
-CREATE INDEX board_snapshots_board_id_created_at_idx
-    ON board_snapshots (board_id, created_at DESC);
+CREATE INDEX board_snapshots_board_id_id_idx
+    ON board_snapshots (board_id, id DESC);
 
 -- +goose Down
 DROP TABLE board_snapshots;
