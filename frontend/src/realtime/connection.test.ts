@@ -10,6 +10,8 @@ import {
 import { connectToBoard } from './connection'
 
 // Stands in for the browser's WebSocket so these tests need no server.
+// Unlike a real socket, close() calls onclose straight away rather than
+// later, so don't rely on that ordering in connection.ts.
 class FakeWebSocket {
   static instances: FakeWebSocket[] = []
 
@@ -235,6 +237,17 @@ describe('connectToBoard', () => {
       latestSocket().serverDrops()
       expect(connection.clientId()).toBeNull()
     })
+
+    it('comes from the new welcome message after reconnecting', () => {
+      const connection = connectToBoard('abc')
+      latestSocket().serverSends({ type: 'welcome', clientId: 'c_7f3a' })
+      latestSocket().serverDrops()
+      vi.advanceTimersByTime(1000)
+
+      latestSocket().serverSends({ type: 'welcome', clientId: 'c_2b8e' })
+
+      expect(connection.clientId()).toBe('c_2b8e')
+    })
   })
 
   describe('retrying', () => {
@@ -259,7 +272,7 @@ describe('connectToBoard', () => {
       expect(connection.status()).toBe('closed')
     })
 
-    it('starts the delays over after reconnecting', () => {
+    it('starts the delays over once the server welcomes it again', () => {
       connectToBoard('abc')
       latestSocket().serverDrops()
       expectRetryAfter(1000)
@@ -267,8 +280,25 @@ describe('connectToBoard', () => {
       expectRetryAfter(2000)
 
       latestSocket().serverOpens()
+      latestSocket().serverSends({ type: 'welcome', clientId: 'c_7f3a' })
       latestSocket().serverDrops()
       expectRetryAfter(1000)
+    })
+
+    // A server that accepts the socket and then closes it, for example
+    // because it rejects the board, must not be retried every second.
+    it('keeps growing the delays when the server drops before welcoming', () => {
+      connectToBoard('abc')
+
+      latestSocket().serverOpens()
+      latestSocket().serverDrops()
+      expectRetryAfter(1000)
+      latestSocket().serverOpens()
+      latestSocket().serverDrops()
+      expectRetryAfter(2000)
+      latestSocket().serverOpens()
+      latestSocket().serverDrops()
+      expectRetryAfter(5000)
     })
 
     it('retries for the same board', () => {
@@ -318,6 +348,31 @@ describe('connectToBoard', () => {
       connection.send({ type: 'change', elements: [] })
 
       expect(latestSocket().sent).toEqual([])
+    })
+
+    it('ignores messages that arrive after closing', () => {
+      const connection = connectToBoard('abc')
+      const socket = latestSocket()
+      const onCursor = vi.fn()
+      connection.on('cursor', onCursor)
+      socket.serverOpens()
+
+      connection.close()
+      socket.serverSends(cursorMessage)
+      socket.serverSends({ type: 'welcome', clientId: 'c_7f3a' })
+
+      expect(onCursor).not.toHaveBeenCalled()
+      expect(connection.clientId()).toBeNull()
+    })
+
+    it('stays closed if the socket opens after closing', () => {
+      const connection = connectToBoard('abc')
+      const socket = latestSocket()
+
+      connection.close()
+      socket.serverOpens()
+
+      expect(connection.status()).toBe('closed')
     })
 
     it('does not retry when a status handler closes on a drop', () => {
