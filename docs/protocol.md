@@ -1,9 +1,77 @@
 # Live editing protocol
 
-This page describes how browsers and the Go server exchange board changes. The
-message format will be added with the server's WebSocket work (#26). If the
-format or the rule below needs to change, change this page in a PR and tag the
+This page describes how browsers and the Go server exchange board changes. If
+the format or the rule below needs to change, change this page in a PR and tag the
 owners of #26, #27, #28 and #29.
+
+## Connections and messages
+
+Each tab connects once at `/ws?board=<boardId>`. One connection belongs to one
+room; clients with the same board ID share the same in-memory room. Before
+upgrading, the server requires a valid UTF-8 board ID with 1–64 Unicode code
+points; otherwise it returns HTTP 400. IDs are used exactly as supplied, without
+trimming or normalization. Default WebSocket origin checks remain enabled.
+
+The server sends `{"type":"welcome","clientId":"c_..."}` first. It then
+forwards accepted messages to everyone else in that room, adding a trusted
+`from` field and never echoing to the sender. On disconnect it sends
+`{"type":"leave","clientId":"c_..."}` to the remaining clients and deletes an
+empty room. Reconnecting creates a new client ID; no board contents are stored.
+
+Browser messages are UTF-8 JSON objects sent as WebSocket text messages:
+
+```json
+{"type":"change","elements":[]}
+{"type":"cursor","x":120.5,"y":88,"name":"Kathy","color":"#e03131"}
+```
+
+Minimum validation checks the JSON object and its exact `type`, which must be
+`change` or `cursor`. Payload fields (including individual Excalidraw elements)
+are not validated yet; unknown fields are preserved. Every relayed message has
+`"from":"c_..."` set from the connection, replacing any browser-supplied value.
+This is a connection identity, not authentication or board access control.
+
+Incoming messages may contain at most 1 MiB (1,048,576 bytes), including JSON
+whitespace and before adding `from`. Binary messages, malformed JSON, unsupported
+types, and oversized messages receive an error such as
+`{"type":"error","message":"message too large"}` and are not broadcast. The
+connection stays open after these application errors. Oversized messages are
+read with bounded buffering and their remaining bytes discarded before reading
+the next message. WebSocket protocol errors and network failures can still close
+the connection.
+
+Each client has a reader and a writer, connected to its room by a bounded
+outgoing queue of 64 messages. A full queue cancels that connection rather than
+blocking other participants or silently discarding edits. Writes have a
+10-second timeout. Cancellation stops both loops without closing the outgoing
+channel, avoiding sends to a closed channel during concurrent broadcasts.
+Server shutdown also cancels active connections. Recovery after disconnection
+is separate work; this scaffold cannot resynchronize a slow client's board.
+
+The tests cover these observable scenarios:
+
+```gherkin
+Scenario: Participants exchange messages within a board
+  Given Alice, Bob, and Carol are on board a and Dan is on board b
+  When Alice and Bob send messages
+  Then the other participants on board a receive those messages
+  And no sender receives its own message
+  And Dan receives no messages from board a
+
+Scenario: A participant disconnects
+  Given Alice and Bob are on the same board
+  When Alice disconnects
+  Then Bob receives one leave message identifying Alice
+  And Bob can keep exchanging messages with another participant
+  When all participants disconnect
+  Then the room is removed
+
+Scenario: An invalid message does not interrupt collaboration
+  Given Alice and Bob are on the same board
+  When Alice sends malformed JSON, an unsupported type, binary data, or more than 1 MiB
+  Then Alice receives an error and Bob receives none of that message
+  And Alice can still send an accepted message to Bob on the same connection
+```
 
 ## Which edit wins
 

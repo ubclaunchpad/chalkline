@@ -4,12 +4,16 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/ubclaunchpad/chalkline/server/internal/realtime"
 )
 
 // NewHandler returns the HTTP routes served by Chalkline.
 func NewHandler() http.Handler {
+	hub := realtime.NewHub()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", handleHealthz)
+	mux.HandleFunc("GET /ws", hub.HandleWebSocket)
 	return mux
 }
 
