@@ -375,6 +375,20 @@ describe('connectToBoard', () => {
       expect(connection.status()).toBe('closed')
     })
 
+    it('does not send a stale open after a handler closes on open', () => {
+      const connection = connectToBoard('abc')
+      connection.onStatus((status) => {
+        if (status === 'open') connection.close()
+      })
+      const seen: string[] = []
+      connection.onStatus((status) => seen.push(status))
+
+      latestSocket().serverOpens()
+
+      expect(connection.status()).toBe('closed')
+      expect(seen.at(-1)).toBe(connection.status())
+    })
+
     it('does not retry when a status handler closes on a drop', () => {
       const connection = connectToBoard('abc')
       connection.onStatus((status) => {

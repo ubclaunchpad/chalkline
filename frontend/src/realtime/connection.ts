@@ -102,7 +102,12 @@ export function connectToBoard(boardId: string): BoardConnection {
     if (next !== status) {
       status = next
       // Copy first, so a handler that unsubscribes doesn't skip the next one.
-      for (const handler of [...statusHandlers]) callSafely(handler, next)
+      for (const handler of [...statusHandlers]) {
+        // If a handler changed the status, the later handlers have already been
+        // told the newer one, so stop here instead of sending them this old status.
+        if (status !== next) break
+        callSafely(handler, next)
+      }
     }
     return !closedByUser
   }
