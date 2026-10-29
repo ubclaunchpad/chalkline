@@ -365,6 +365,30 @@ describe('connectToBoard', () => {
       expect(connection.clientId()).toBeNull()
     })
 
+    it('clears a welcomed client ID when explicitly closed', () => {
+      const connection = connectToBoard('abc')
+      const socket = latestSocket()
+      socket.serverOpens()
+      socket.serverSends({ type: 'welcome', clientId: 'c_before_close' })
+      expect(connection.clientId()).toBe('c_before_close')
+
+      const identitiesOnClose: (string | null)[] = []
+      connection.onStatus((status) => {
+        if (status === 'closed') identitiesOnClose.push(connection.clientId())
+      })
+
+      connection.close()
+
+      expect(connection.status()).toBe('closed')
+      expect(connection.clientId()).toBeNull()
+      expect(identitiesOnClose).toEqual([null])
+
+      socket.serverSends({ type: 'welcome', clientId: 'c_after_close' })
+      expect(connection.clientId()).toBeNull()
+      vi.advanceTimersByTime(60_000)
+      expect(FakeWebSocket.instances).toHaveLength(1)
+    })
+
     it('stays closed if the socket opens after closing', () => {
       const connection = connectToBoard('abc')
       const socket = latestSocket()

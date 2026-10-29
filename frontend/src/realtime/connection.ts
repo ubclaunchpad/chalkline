@@ -190,6 +190,8 @@ export function connectToBoard(boardId: string): BoardConnection {
       clearTimeout(retryTimer)
       socket?.close()
       socket = null
+      // Clear before notifying, so a handler reacting to closed sees null.
+      clientId = null
       setStatus('closed')
     },
   }
