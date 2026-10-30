@@ -503,4 +503,60 @@ describe('connectToBoard', () => {
       expect(errorSpy).toHaveBeenCalledWith(error)
     })
   })
+
+  describe('a full session', () => {
+    // Follows the order a real server uses: open, then welcome, then
+    // messages. The focused tests above check each step on its own.
+    it('reconnects with a new identity and keeps subscribers until closed', () => {
+      const connection = connectToBoard('abc')
+      const statuses: string[] = []
+      connection.onStatus((status) => statuses.push(status))
+      const onCursor = vi.fn()
+      connection.on('cursor', onCursor)
+
+      // First connection: open, welcome, then send and receive.
+      const firstSocket = latestSocket()
+      firstSocket.serverOpens()
+      firstSocket.serverSends({ type: 'welcome', clientId: 'c_first' })
+      expect(connection.clientId()).toBe('c_first')
+
+      connection.send({ type: 'change', elements: [] })
+      expect(firstSocket.sent).toEqual(['{"type":"change","elements":[]}'])
+      firstSocket.serverSends(cursorMessage)
+      expect(onCursor).toHaveBeenCalledTimes(1)
+
+      // Unexpected drop: identity is forgotten and a retry is scheduled.
+      firstSocket.serverDrops()
+      expect(connection.status()).toBe('closed')
+      expect(connection.clientId()).toBeNull()
+      expectRetryAfter(1000)
+
+      // Second connection: new identity, same subscribers.
+      const secondSocket = latestSocket()
+      expect(secondSocket).not.toBe(firstSocket)
+      secondSocket.serverOpens()
+      secondSocket.serverSends({ type: 'welcome', clientId: 'c_second' })
+      expect(connection.clientId()).toBe('c_second')
+
+      secondSocket.serverSends(cursorMessage)
+      expect(onCursor).toHaveBeenCalledTimes(2)
+      connection.send({ type: 'change', elements: [] })
+      expect(secondSocket.sent).toEqual(['{"type":"change","elements":[]}'])
+
+      // Explicit close: socket closed, identity cleared, no more retries.
+      connection.close()
+      expect(secondSocket.closed).toBe(true)
+      expect(connection.clientId()).toBeNull()
+      vi.advanceTimersByTime(60_000)
+      expect(FakeWebSocket.instances).toHaveLength(2)
+
+      expect(statuses).toEqual([
+        'open',
+        'closed',
+        'connecting',
+        'open',
+        'closed',
+      ])
+    })
+  })
 })
