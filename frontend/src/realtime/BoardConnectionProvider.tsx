@@ -10,7 +10,11 @@ import { BoardConnectionContext, syncBoardIdToUrl } from './useBoardConnection'
  * setup. Each cleanup closes the connection its own setup opened, so
  * exactly one connection stays open.
  */
-export function BoardConnectionProvider({ children}: { children?: ReactNode}) {
+export function BoardConnectionProvider({
+  children,
+}: {
+  children?: ReactNode
+}) {
   const [connection, setConnection] = useState<BoardConnection | null>(null)
 
   useEffect(() => {

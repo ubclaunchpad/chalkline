@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BoardConnectionProvider } from './BoardConnectionProvider'
 import type { BoardConnection } from './connection'
 import { FakeWebSocket } from './fakeWebSocket'
-import { useBoardConnection } from './useBoardConnection'
+import { useBoardConnection, useConnectionStatus } from './useBoardConnection'
 
 // `reactStrictMode: true` renders the way the app does in development.
 
@@ -92,5 +92,44 @@ describe('BoardConnectionProvider', () => {
     expect(() => renderHook(() => useBoardConnection())).toThrow(
       'useBoardConnection must be used inside BoardConnectionProvider',
     )
+  })
+})
+
+describe('useConnectionStatus', () => {
+  function renderStatus() {
+    return renderHook(() => useConnectionStatus(), {
+      wrapper: BoardConnectionProvider,
+    })
+  }
+
+  it('is connecting before the socket opens', () => {
+    const { result } = renderStatus()
+
+    expect(result.current).toBe('connecting')
+  })
+
+  it('follows the connection through a drop and a reconnect', () => {
+    const { result } = renderStatus()
+
+    act(() => {
+      FakeWebSocket.instances[0].serverOpens()
+    })
+    expect(result.current).toBe('open')
+
+    act(() => {
+      FakeWebSocket.instances[0].serverDrops()
+    })
+    expect(result.current).toBe('closed')
+
+    // The first retry comes after 1 second.
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(result.current).toBe('connecting')
+
+    act(() => {
+      FakeWebSocket.instances[1].serverOpens()
+    })
+    expect(result.current).toBe('open')
   })
 })

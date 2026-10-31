@@ -1,5 +1,10 @@
-import { createContext, useContext } from 'react'
-import type { BoardConnection } from './connection'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useSyncExternalStore,
+} from 'react'
+import type { BoardConnection, ConnectionStatus } from './connection'
 
 export const DEFAULT_BOARD_ID = 'demo'
 
@@ -40,4 +45,24 @@ export function useBoardConnection(): BoardConnection | null {
     )
   }
   return connection
+}
+
+/**
+ * Returns the shared connection's status and re-renders when it changes.
+ *
+ * It is `connecting` before the provider has connected. Throws when used
+ * outside a `BoardConnectionProvider`.
+ */
+export function useConnectionStatus(): ConnectionStatus {
+  const connection = useBoardConnection()
+  // Kept the same between renders, so React doesn't resubscribe each time.
+  const subscribe = useCallback(
+    (onChange: () => void) =>
+      connection ? connection.onStatus(onChange) : () => undefined,
+    [connection],
+  )
+  return useSyncExternalStore(
+    subscribe,
+    () => connection?.status() ?? 'connecting',
+  )
 }
