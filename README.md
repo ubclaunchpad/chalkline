@@ -39,9 +39,19 @@ port 8080. Open the frontend URL to see the canvas; `curl localhost:8080/healthz
 should return `{"status":"ok"}`. In development, Vite proxies `/api` and `/ws`
 to the server, so frontend code can use same-origin URLs.
 
-To start or stop the local Postgres database, run `make db-up` or
-`make db-down`. The server does not connect to it yet. Copy `.env.example` to
-`.env` if you need to change ports or credentials.
+### Database
+
+Copy `.env.example` to `.env`, then:
+
+- `make db-up` starts the local Postgres container.
+- `make db-migrate` applies the migrations in `server/migrations/` to
+  `DATABASE_URL` using [goose](https://github.com/pressly/goose). Running it
+  again is safe; applied migrations are skipped.
+- `make db-down` stops the container. Data persists in a Docker volume.
+
+The server does not connect to the database yet. The store's integration tests
+run against `DATABASE_URL` after `make db-up && make db-migrate`, and are
+skipped when it isn't set.
 
 ### Checks
 

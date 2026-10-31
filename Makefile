@@ -5,7 +5,7 @@
 -include .env
 export
 
-.PHONY: install dev dev-web dev-server db-up db-down fmt check check-web check-server check-workflows
+.PHONY: install dev dev-web dev-server db-up db-down db-migrate fmt check check-web check-server check-workflows
 
 install:
 	cd frontend && bun install --frozen-lockfile
@@ -25,6 +25,14 @@ db-up:
 
 db-down:
 	docker compose down
+
+GOOSE_VERSION := v3.28.0
+
+db-migrate:
+	@test -n "$(DATABASE_URL)" || (echo "DATABASE_URL is not set; copy .env.example to .env"; exit 1)
+	@# The connection string goes through the environment so make never echoes it.
+	@cd server && GOOSE_DRIVER=postgres GOOSE_DBSTRING="$$DATABASE_URL" \
+		go run github.com/pressly/goose/v3/cmd/goose@$(GOOSE_VERSION) -dir migrations up
 
 fmt:
 	cd frontend && bun run format
