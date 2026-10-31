@@ -15,10 +15,45 @@ Ownership identifies the first reviewers and decision makers for a change. Work 
 
 The planned workflow uses `main` for stable releases and `dev` for integration. Create `feature/<short-name>` from `dev`. At key integration points, including sprint boundaries, open a pull request to merge the feature into `dev`. A relevant subteam member gives the first review; Owen or Alan gives final approval. Owen and Alan merge reviewed releases from `dev` into `main`.
 
+`dev` is the repository's default branch, so new clones and pull requests start there. Write `Closes #123` in a PR description to link the issue and close it automatically when the PR merges into `dev`. If the issue needs more than one PR, write `Part of #123` in the earlier ones and `Closes #123` in the last. To link a branch from the start, use **Development → Create a branch** on the issue.
+
 Keep pull requests scoped so reviewers can understand them. Describe the problem, approach, tests run, and any change to the schema, sync protocol, or user experience. Designers should review changes that materially affect the interface.
+
+## Protected branches
+
+Two repository rulesets protect `dev` and `main`, so the review flow above is enforced rather than just agreed on:
+
+- **CI and history** (no exceptions, admins included): direct pushes, force pushes, and branch deletion are blocked. The three CI jobs must pass. A PR doesn't need to be rebased onto the latest `dev` first; CI runs again after each merge to catch combined breakage.
+- **PR review:** changes arrive only through pull requests. Each PR needs two approving reviews, matching the flow above: a subteam reviewer and a final approval, and every review conversation must be resolved. Pushing new commits dismisses earlier approvals, so an approval always covers the code that actually merges.
+
+The 2026-2027 Execs team, which includes Owen and Alan, may skip the review requirement when merging a PR, for example to unblock urgent integration work. GitHub records each skip in the repository's rule insights. The exception doesn't cover CI or direct pushes. Leads should still ask for review whenever someone is available, because review is how the team learns the codebase.
+
+Your own feature branches have no rules. Rebasing onto `dev` and force-pushing is normal there. Use `git push --force-with-lease` rather than `--force`: it refuses to push if the remote branch has commits you haven't fetched, such as a pairing partner's work, instead of silently deleting them. Coordinate before force-pushing a branch someone else also commits to.
 
 ## Quality expectations
 
 We aim to meet real-world engineering standards through comprehensive static and type checks, automated tests, and CI-based deployment. We recommend the same checks during development and review.
 
 As AI-driven development becomes a primary way to deliver code, careful review matters even more. Read every change before committing it. Do not commit code you cannot explain, test, or maintain, regardless of how it was written.
+
+## Continuous integration
+
+Every pull request into `dev` or `main` runs [CI](../.github/workflows/ci.yml) on GitHub Actions. CI runs again after each merge, because two PRs that pass separately can still break each other once combined. A PR is ready to merge only when every check is green.
+
+| Job | What it checks | Why it matters |
+| --- | --- | --- |
+| Frontend | ESLint with type-checked strict rules, `tsc` strict, Prettier, Vitest, production build | Catches type errors, risky patterns, and broken builds before review, and keeps formatting out of review comments. |
+| Server | `gofmt`, `go mod tidy`, `go vet`, `go build`, `go test -race` | The race detector finds unsafe concurrent access. That matters most for room state shared between WebSocket connections. |
+| Workflows | [actionlint](https://github.com/rhysd/actionlint) on `.github/workflows` | CI configuration is code too, and a typo there can silently skip a check. |
+
+**Reproduce CI locally.** Each job runs one Makefile target, so `make check` runs the same checks on your machine. You can also run one job's checks with `make check-web`, `make check-server`, or `make check-workflows`. Run `make fmt` to fix formatting. Install [shellcheck](https://www.shellcheck.net/) (for example `brew install shellcheck`) so your local actionlint also checks the shell scripts inside `run:` steps, as CI does.
+
+**When a check fails:**
+
+1. Open the failing job from the PR's Checks tab. Make prints each command before running it, so the failing command appears just above the error.
+2. Run that command locally, fix the cause, and push again. The new push cancels the older run.
+3. Don't skip, disable, or loosen a check to get a PR through. If a check is wrong or a test is flaky, open an issue and fix that in its own PR, so reviewers can see the change.
+
+**Supply-chain safety.** Workflows request read-only permissions and pin each third-party action to a full commit SHA. A tag can be moved to point at different code, but a commit SHA can't. [Dependabot](../.github/dependabot.yml) opens one grouped PR each week for GitHub Actions, frontend packages, and Go modules. It waits seven days after each release before proposing it. Review these like any other PR: read the changelog for major versions and let CI run.
+
+**Adding a check.** Add it to the relevant `check-*` Makefile target so local runs and CI stay identical. Then explain in the PR what the check catches and how long it adds to the run. The ruleset requires CI jobs by name. If you add, rename, or remove a job, a lead must update the required checks in the same change. Otherwise PRs either wait forever for a check that no longer exists or merge without the new one. Planned additions include staticcheck, Postgres integration tests, secret scanning, and container builds (#12).

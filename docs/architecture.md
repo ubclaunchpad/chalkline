@@ -15,7 +15,7 @@ The frontend uses React, strict TypeScript, Tailwind, a design system built with
 
 ## Collaboration and persistence
 
-The planned Go WebSocket service is server-authoritative: it orders document operations, applies last-write-wins conflict resolution, and broadcasts changes. Presence and cursors are ephemeral. One process initially holds a map of rooms in memory, with a mutex for each room. HTTP/API paths remain stateless, and room memory is coordination state rather than durable storage. PostgreSQL stores periodic snapshots and an operation log between them so boards can be restored after a restart.
+The planned Go WebSocket service validates incoming messages and passes each board's changes to the other people on that board. When two people change the same element at once, the copy with the higher Excalidraw `version` wins, with the lower `versionNonce` breaking ties. Every browser applies this rule, and so will the server once it keeps its own copy of a board, so all copies converge regardless of message order. See the [live editing protocol](protocol.md). Presence and cursors are ephemeral. One process initially holds a map of rooms in memory, with a mutex for each room. HTTP/API paths remain stateless, and room memory is coordination state rather than durable storage. PostgreSQL stores periodic snapshots and an operation log between them so boards can be restored after a restart.
 
 Local recovery after a disconnect, joining an active board, and reconciling local edits with remote updates are part of the editor design. Sharing must support view and edit access. Accounts are deferred for the initial experience.
 
@@ -23,6 +23,7 @@ Local recovery after a disconnect, joining an active board, and reconciling loca
 
 - **Deployment:** The team intends to deploy the service itself; cloud provider and database hosting are undecided.
 - **Scaling:** Horizontal scaling is deferred. A `RoomOwner` interface can preserve a path to Redis-backed ownership as a separate learning task without blocking the first demo. Redis may also serve as a cache, but PostgreSQL remains the durable store.
+- **Conflict resolution:** "Higher version wins" means the copy that was edited more wins, not the one edited last. If that surprises users, the server could instead send every change back to everyone in one fixed order, with browsers undoing their own edits when needed.
 - **Canvas customization:** Start with embedded Excalidraw. Consider a fork only if the component experience cannot be built through its supported extension points.
 
 See the [roadmap](roadmap.md) for possible product directions and [team workflow](workflow.md) for subsystem ownership.

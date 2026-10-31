@@ -1,0 +1,39 @@
+# Dependabot opens PRs into dev when dependencies or pinned actions have
+# updates. Each ecosystem's updates are grouped into one weekly PR so they are
+# reviewable, and CI checks every update before anyone merges it. The cooldown
+# waits a week after a release before proposing it, so a compromised or broken
+# release is usually caught by the wider community first.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: bun
+    directory: /frontend
+    target-branch: dev
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      frontend:
+        patterns: ['*']
+
+  - package-ecosystem: gomod
+    directory: /server
+    target-branch: dev
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      server:
+        patterns: ['*']

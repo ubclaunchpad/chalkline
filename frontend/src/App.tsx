@@ -1,7 +1,17 @@
+import { useEffect } from 'react'
+import { Excalidraw } from '@excalidraw/excalidraw'
+import '@excalidraw/excalidraw/index.css'
+import { syncBoardIdToUrl } from './realtime/useBoardConnection'
+
 function App() {
+  // Runs once on mount. The board id will be passed to the connection in #27.
+  useEffect(() => {
+    syncBoardIdToUrl()
+  }, [])
+
   return (
-    <main className="min-h-screen bg-white p-8 text-slate-900">
-      <h1 className="text-3xl font-semibold">Chalkline</h1>
+    <main className="h-screen w-screen">
+      <Excalidraw />
     </main>
   )
 }

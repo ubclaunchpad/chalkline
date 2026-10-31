@@ -1,0 +1,76 @@
+# Continuous integration: every pull request must pass these checks before it
+# can merge. Each job calls a Makefile target, so `make check` runs the same
+# checks locally. See docs/workflow.md#continuous-integration.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  # Re-check after merging, because two PRs that each passed alone can still
+  # break each other once combined.
+  push:
+    branches: [main, dev]
+
+# Least privilege: jobs can read the code but cannot push, comment, or release.
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's older, now-irrelevant run. Runs on
+# dev and main are never cancelled, so every merged commit gets a result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Third-party actions are pinned to a full commit SHA rather than a tag. A tag
+# can be moved to point at different (possibly malicious) code; a SHA cannot.
+# The trailing comment records the human-readable version, and Dependabot
+# (.github/dependabot.yml) proposes updates to both.
+
+jobs:
+  frontend:
+    name: Frontend (lint, types, format, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Don't leave a Git token on disk for later steps; nothing here pushes.
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # Use the exact Bun version from package.json's packageManager field.
+          bun-version-file: frontend/package.json
+      - run: make install
+      - run: make check-web
+
+  server:
+    name: Server (gofmt, mod tidy, vet, build, race tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: server/go.mod
+          # The server has no dependencies yet, so there is no go.sum to key a
+          # module cache on. Enable caching with
+          # cache-dependency-path: server/go.sum once the first dependency lands.
+          cache: false
+      - run: make check-server
+
+  workflows:
+    name: Workflows (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: server/go.mod
+          cache: false
+      - run: make check-workflows
