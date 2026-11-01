@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSceneSyncController, type SceneSyncApi } from './useSceneSync'
 
 type RectangleElement = Extract<OrderedExcalidrawElement, { type: 'rectangle' }>
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] }
 
 const rectangle = ({
   id,
@@ -168,6 +169,24 @@ describe('createSceneSyncController', () => {
     vi.advanceTimersByTime(50)
 
     expect(sync.sent).toEqual([[deletion]])
+  })
+
+  it('detects a later version when Excalidraw mutates an element in place', () => {
+    const drawing = rectangle({ id: 'shape' }) as Mutable<RectangleElement>
+    const sync = setup([])
+
+    sync.controller.onSceneChange([drawing])
+    vi.advanceTimersByTime(50)
+    sync.sent.length = 0
+
+    drawing.width = 100
+    drawing.height = 100
+    drawing.version = 2
+    drawing.versionNonce = 2
+    sync.controller.onSceneChange([drawing])
+    vi.advanceTimersByTime(50)
+
+    expect(sync.sent).toEqual([[drawing]])
   })
 
   it('applies a winning remote update outside local undo history', () => {
