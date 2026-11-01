@@ -33,6 +33,33 @@ export interface SceneSyncController {
   dispose(): void
 }
 
+interface ElementVersion {
+  version: number
+  versionNonce: number
+}
+
+const snapshotVersions = (
+  elements: readonly OrderedExcalidrawElement[],
+): Map<string, ElementVersion> =>
+  new Map(
+    elements.map((element) => [
+      element.id,
+      { version: element.version, versionNonce: element.versionNonce },
+    ]),
+  )
+
+const changedSince = (
+  previous: ReadonlyMap<string, ElementVersion>,
+  elements: readonly OrderedExcalidrawElement[],
+): OrderedExcalidrawElement[] =>
+  elements.filter((element) => {
+    const version = previous.get(element.id)
+    return (
+      version?.version !== element.version ||
+      version.versionNonce !== element.versionNonce
+    )
+  })
+
 /** Coordinates Excalidraw scene changes with one board connection. */
 export const createSceneSyncController = ({
   api,
@@ -40,7 +67,11 @@ export const createSceneSyncController = ({
   subscribe,
   intervalMs = SCENE_SEND_INTERVAL_MS,
 }: SceneSyncControllerOptions): SceneSyncController => {
-  let previousElements = api.getSceneElementsIncludingDeleted()
+  // Excalidraw mutates active elements in place, so retaining its element
+  // objects would also mutate our "previous" scene and hide later versions.
+  let previousVersions = snapshotVersions(
+    api.getSceneElementsIncludingDeleted(),
+  )
   let pendingElements: OrderedExcalidrawElement[] = []
   let sendTimer: ReturnType<typeof setTimeout> | undefined
   let disposed = false
@@ -82,8 +113,8 @@ export const createSceneSyncController = ({
     onSceneChange(elements) {
       if (disposed) return
 
-      const changes = changedElements(previousElements, elements)
-      previousElements = elements
+      const changes = changedSince(previousVersions, elements)
+      previousVersions = snapshotVersions(elements)
       queueElements(remoteUpdates.filter(changes))
     },
 
