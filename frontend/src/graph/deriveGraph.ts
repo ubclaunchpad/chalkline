@@ -53,7 +53,7 @@ export function deriveGraph(elements: readonly ExcalidrawElement[]): Graph {
     }
     const result = validateComponent(element.customData)
     if (result.ok) {
-      nodes[element.id] = { id: element.id, ...result.data }
+      nodes[element.id] = { ...result.data, id: element.id }
     } else {
       for (const message of result.problems) {
         diagnostics.push({ elementId: element.id, message })

@@ -141,6 +141,16 @@ describe('deriveGraph', () => {
     })
   })
 
+  it('keeps the element ID when customData contains its own id', () => {
+    const spoofed = rectangle('db', {
+      customData: { ...databaseData, id: 'spoofed' },
+    })
+
+    expect(deriveGraph([spoofed]).nodes).toEqual({
+      db: { ...databaseData, id: 'db' },
+    })
+  })
+
   it('ignores plain shapes', () => {
     expect(deriveGraph([rectangle('box')])).toEqual(emptyGraph)
   })
