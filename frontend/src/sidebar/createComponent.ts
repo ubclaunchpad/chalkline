@@ -6,7 +6,6 @@ import {
   type CatalogEntry,
 } from './catalog'
 
-
 const ADAPTIVE_RADIUS_ROUNDNESS = 3 as const
 
 /** Scene point (same units Excalidraw elements use). */

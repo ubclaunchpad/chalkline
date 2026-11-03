@@ -68,7 +68,6 @@ interface NamedComponentData {
   props: Record<string, unknown>
 }
 
-
 export function isComponentData(value: unknown): value is NamedComponentData {
   if (typeof value !== 'object' || value === null) {
     return false
