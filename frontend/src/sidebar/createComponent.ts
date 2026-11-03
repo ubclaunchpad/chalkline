@@ -6,10 +6,7 @@ import {
   type CatalogEntry,
 } from './catalog'
 
-// Mirrors `ROUNDNESS.ADAPTIVE_RADIUS` from '@excalidraw/excalidraw'. Inlined
-// as a literal so this pure, unit-tested logic doesn't have to import
-// Excalidraw's full runtime bundle (which assumes a browser) just to read
-// one constant; `addComponent.ts` imports the real runtime separately.
+
 const ADAPTIVE_RADIUS_ROUNDNESS = 3 as const
 
 /** Scene point (same units Excalidraw elements use). */

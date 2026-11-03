@@ -68,10 +68,7 @@ interface NamedComponentData {
   props: Record<string, unknown>
 }
 
-// Lenient shape check for collecting names already used on the board. Unlike
-// validateComponent (frontend/src/catalog/validate.ts), this doesn't require
-// props to fully match the kind's settings, so a component saved under an
-// older version of a kind's settings still has its name counted as taken.
+
 export function isComponentData(value: unknown): value is NamedComponentData {
   if (typeof value !== 'object' || value === null) {
     return false
