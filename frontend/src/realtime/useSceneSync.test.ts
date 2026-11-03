@@ -2,6 +2,12 @@ import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/ty
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSceneSyncController, type SceneSyncApi } from './useSceneSync'
 
+vi.mock('@excalidraw/excalidraw', () => ({
+  CaptureUpdateAction: {
+    NEVER: 'NEVER',
+  },
+}))
+
 type RectangleElement = Extract<OrderedExcalidrawElement, { type: 'rectangle' }>
 type Mutable<T> = { -readonly [Key in keyof T]: T[Key] }
 

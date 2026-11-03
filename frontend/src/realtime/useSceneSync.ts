@@ -1,5 +1,6 @@
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { CaptureUpdateAction } from '@excalidraw/excalidraw'
 import { useCallback, useEffect, useRef } from 'react'
 import type { BoardConnection } from './connection'
 import {
@@ -9,13 +10,12 @@ import {
 } from './sceneSync'
 
 export const SCENE_SEND_INTERVAL_MS = 50
-const REMOTE_CAPTURE_UPDATE = 'NEVER' as const
 
 export interface SceneSyncApi {
   getSceneElementsIncludingDeleted: () => readonly OrderedExcalidrawElement[]
   updateScene: (scene: {
     elements: readonly OrderedExcalidrawElement[]
-    captureUpdate: typeof REMOTE_CAPTURE_UPDATE
+    captureUpdate: typeof CaptureUpdateAction.NEVER
   }) => void
 }
 
@@ -105,7 +105,7 @@ export const createSceneSyncController = ({
     remoteUpdates.remember(appliedRemoteElements)
     api.updateScene({
       elements: merged,
-      captureUpdate: REMOTE_CAPTURE_UPDATE,
+      captureUpdate: CaptureUpdateAction.NEVER,
     })
   })
 

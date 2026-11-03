@@ -41,6 +41,9 @@ vi.mock('@excalidraw/excalidraw', async () => {
   const { useEffect } = await import('react')
 
   return {
+    CaptureUpdateAction: {
+      NEVER: 'NEVER',
+    },
     Excalidraw(props: MockExcalidrawProps) {
       mockExcalidraw.props = props
       const { excalidrawAPI } = props
