@@ -5,6 +5,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { FakeWebSocket } from './realtime/fakeWebSocket'
+import { SCENE_SEND_INTERVAL_MS } from './realtime/useSceneSync'
 
 interface MockExcalidrawProps {
   excalidrawAPI?: (api: ExcalidrawImperativeAPI) => void
@@ -125,7 +126,7 @@ describe('App scene synchronization', () => {
     act(() => {
       socket().serverOpens()
       mockExcalidraw.props?.onChange?.([local])
-      vi.advanceTimersByTime(50)
+      vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
     })
 
     expect(socket().sent).toEqual([

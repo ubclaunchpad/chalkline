@@ -1,6 +1,10 @@
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSceneSyncController, type SceneSyncApi } from './useSceneSync'
+import {
+  createSceneSyncController,
+  SCENE_SEND_INTERVAL_MS,
+  type SceneSyncApi,
+} from './useSceneSync'
 
 vi.mock('@excalidraw/excalidraw', () => ({
   CaptureUpdateAction: {
@@ -110,7 +114,7 @@ afterEach(() => {
 })
 
 describe('createSceneSyncController', () => {
-  it('sends only the element that changed after 50 ms', () => {
+  it(`sends only the element that changed after ${String(SCENE_SEND_INTERVAL_MS)} ms`, () => {
     const first = rectangle({ id: 'first' })
     const second = rectangle({ id: 'second' })
     const changedFirst = rectangle({ id: 'first', version: 2, x: 20 })
@@ -118,9 +122,9 @@ describe('createSceneSyncController', () => {
 
     sync.controller.onSceneChange([changedFirst, second])
 
-    vi.advanceTimersByTime(49)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS - 1)
     expect(sync.sent).toEqual([])
-    vi.advanceTimersByTime(1)
+    vi.advanceTimersToNextTimer()
     expect(sync.sent).toEqual([[changedFirst]])
   })
 
@@ -133,26 +137,26 @@ describe('createSceneSyncController', () => {
     const sync = setup([first, second])
 
     sync.controller.onSceneChange([firstEdit, second])
-    vi.advanceTimersByTime(25)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS / 2)
     sync.controller.onSceneChange([latestFirstEdit, secondEdit])
-    vi.advanceTimersByTime(25)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS / 2)
 
     expect(sync.sent).toEqual([[latestFirstEdit, secondEdit]])
   })
 
-  it('keeps consecutive sends at least 50 ms apart', () => {
+  it(`keeps consecutive sends at least ${String(SCENE_SEND_INTERVAL_MS)} ms apart`, () => {
     const original = rectangle({ id: 'shape' })
     const firstEdit = rectangle({ id: 'shape', version: 2, x: 10 })
     const secondEdit = rectangle({ id: 'shape', version: 3, x: 20 })
     const sync = setup([original])
 
     sync.controller.onSceneChange([firstEdit])
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
     sync.controller.onSceneChange([secondEdit])
-    vi.advanceTimersByTime(49)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS - 1)
 
     expect(sync.sent).toEqual([[firstEdit]])
-    vi.advanceTimersByTime(1)
+    vi.advanceTimersToNextTimer()
     expect(sync.sent).toEqual([[firstEdit], [secondEdit]])
   })
 
@@ -161,7 +165,7 @@ describe('createSceneSyncController', () => {
     const sync = setup([element])
 
     sync.controller.onSceneChange([element])
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
 
     expect(sync.sent).toEqual([])
   })
@@ -172,7 +176,7 @@ describe('createSceneSyncController', () => {
     const sync = setup([local])
 
     sync.controller.onSceneChange([deletion])
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
 
     expect(sync.sent).toEqual([[deletion]])
   })
@@ -182,7 +186,7 @@ describe('createSceneSyncController', () => {
     const sync = setup([])
 
     sync.controller.onSceneChange([drawing])
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
     sync.sent.length = 0
 
     drawing.width = 100
@@ -190,7 +194,7 @@ describe('createSceneSyncController', () => {
     drawing.version = 2
     drawing.versionNonce = 2
     sync.controller.onSceneChange([drawing])
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
 
     expect(sync.sent).toEqual([[drawing]])
   })
@@ -229,7 +233,7 @@ describe('createSceneSyncController', () => {
 
     sync.receive([remote])
     sync.controller.onSceneChange(sync.scene())
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
 
     expect(sync.sent).toEqual([])
   })
@@ -243,7 +247,7 @@ describe('createSceneSyncController', () => {
     sync.receive([remote])
     sync.controller.onSceneChange(sync.scene())
     sync.controller.onSceneChange([localEdit])
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
 
     expect(sync.sent).toEqual([[localEdit]])
   })
@@ -266,7 +270,7 @@ describe('createSceneSyncController', () => {
 
     sync.receive([deletion])
     sync.controller.onSceneChange(sync.scene())
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
 
     expect(sync.scene()).toEqual([deletion])
     expect(sync.sent).toEqual([])
@@ -281,7 +285,7 @@ describe('createSceneSyncController', () => {
     sync.controller.onSceneChange([localEdit])
     sync.controller.dispose()
     sync.receive([remote])
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
 
     expect(sync.unsubscribed()).toBe(true)
     expect(sync.sent).toEqual([])
