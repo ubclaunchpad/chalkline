@@ -1,6 +1,12 @@
 package realtime
 
-import "sync"
+import (
+	"encoding/json"
+	"slices"
+	"sync"
+
+	"github.com/coder/websocket"
+)
 
 type Room struct {
 	mu      sync.Mutex
@@ -22,4 +28,22 @@ func (r *Room) broadcastLocked(sender *Client, msg message) {
 			client.enqueue(msg)
 		}
 	}
+}
+
+// participantsLocked requires r.mu. Capturing the roster under the same lock
+// that queues it means every client receives rosters in membership order, so
+// the last one each client gets matches the room.
+func (r *Room) participantsLocked() message {
+	ids := make([]string, 0, len(r.clients))
+	for id := range r.clients {
+		ids = append(ids, id)
+	}
+	// Clients treat the list as a set; sorting only makes the bytes predictable.
+	slices.Sort(ids)
+	// A struct of strings always marshals successfully.
+	data, _ := json.Marshal(struct {
+		Type      string   `json:"type"`
+		ClientIDs []string `json:"clientIds"`
+	}{Type: "participants", ClientIDs: ids})
+	return message{kind: websocket.MessageText, data: data}
 }

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -52,7 +53,38 @@ func connect(t *testing.T, url string) (*websocket.Conn, string) {
 	if msg.kind != websocket.MessageText || welcome.Type != "welcome" || welcome.ClientID == "" {
 		t.Fatalf("first message is not a welcome: %s", msg.data)
 	}
+	// The join queues the newcomer's roster under the room lock, so nothing else
+	// can arrive between welcome and this roster.
+	if roster := receiveParticipants(t, conn); !slices.Contains(roster, welcome.ClientID) {
+		t.Fatalf("newcomer's roster %v does not include itself", roster)
+	}
 	return conn, welcome.ClientID
+}
+
+func receiveParticipants(t *testing.T, conn *websocket.Conn) []string {
+	t.Helper()
+	msg := receive(t, conn)
+	var roster struct {
+		Type      string   `json:"type"`
+		ClientIDs []string `json:"clientIds"`
+	}
+	if err := json.Unmarshal(msg.data, &roster); err != nil {
+		t.Fatal(err)
+	}
+	if msg.kind != websocket.MessageText || roster.Type != "participants" {
+		t.Fatalf("expected participants, got %s", msg.data)
+	}
+	return roster.ClientIDs
+}
+
+// expectParticipants compares rosters as sets. A duplicate ID fails the check.
+func expectParticipants(t *testing.T, conn *websocket.Conn, want ...string) {
+	t.Helper()
+	got := receiveParticipants(t, conn)
+	slices.Sort(got)
+	if want = slices.Sorted(slices.Values(want)); !slices.Equal(got, want) {
+		t.Fatalf("roster = %v, want %v", got, want)
+	}
 }
 
 func receive(t *testing.T, conn *websocket.Conn) message {
@@ -112,6 +144,16 @@ func waitForEmptyHub(t *testing.T, hub *Hub) {
 	t.Fatal("rooms were not cleaned up")
 }
 
+func drain(client *Client) {
+	for {
+		select {
+		case <-client.outgoing:
+		default:
+			return
+		}
+	}
+}
+
 func TestConcurrentRelay(t *testing.T) {
 	_, url, _ := startServer(t)
 	var clients []*websocket.Conn
@@ -125,9 +167,14 @@ func TestConcurrentRelay(t *testing.T) {
 		ids[id] = true
 		clients = append(clients, conn)
 		clientIDs = append(clientIDs, id)
+		// connect checked the newcomer's roster; earlier clients learn of the join.
+		for _, earlier := range clients[:len(clients)-1] {
+			expectParticipants(t, earlier, clientIDs...)
+		}
 	}
-	outsider, _ := connect(t, url+"b")
-	partner, _ := connect(t, url+"b")
+	outsider, outsiderID := connect(t, url+"b")
+	partner, partnerID := connect(t, url+"b")
+	expectParticipants(t, outsider, outsiderID, partnerID)
 
 	// All three participants send concurrently. Their readers below must each
 	// receive exactly the other two participants' messages, never their own.
@@ -182,13 +229,15 @@ func TestConcurrentRelay(t *testing.T) {
 func TestDisconnectAndRejoin(t *testing.T) {
 	hub, url, _ := startServer(t)
 	alice, aliceID := connect(t, url+"a")
-	bob, _ := connect(t, url+"a")
+	bob, bobID := connect(t, url+"a")
 	_ = alice.CloseNow() // Abrupt tab/network loss, without a close handshake.
 	leave := receive(t, bob)
 	if string(leave.data) != string(lifecycleMessage("leave", aliceID).data) {
 		t.Fatalf("unexpected leave message: %s", leave.data)
 	}
-	carol, _ := connect(t, url+"a")
+	expectParticipants(t, bob, bobID)
+	carol, carolID := connect(t, url+"a")
+	expectParticipants(t, bob, bobID, carolID)
 	send(t, carol, changeMessage("still working"))
 	if got, _ := receiveChange(t, bob); got != "still working" {
 		t.Fatalf("room stopped working or sent duplicate leave: %q", got)
@@ -231,6 +280,10 @@ func TestFullQueueCancelsOnlySlowClient(t *testing.T) {
 	room := hub.join("a", slow)
 	hub.join("a", healthy)
 	hub.join("a", sender)
+	// Discard join rosters so the slow client overflows only on the broadcast.
+	for _, client := range []*Client{slow, healthy, sender} {
+		drain(client)
+	}
 	msg := message{kind: websocket.MessageText, data: []byte("hello")}
 	for range outgoingCapacity {
 		slow.enqueue(msg)

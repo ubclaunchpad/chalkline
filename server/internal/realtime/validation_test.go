@@ -107,7 +107,8 @@ func sizedChange(size int) string {
 func TestRejectedMessagesKeepRoomWorking(t *testing.T) {
 	_, url, _ := startServer(t)
 	alice, aliceID := connect(t, url+"a")
-	bob, _ := connect(t, url+"a")
+	bob, bobID := connect(t, url+"a")
+	expectParticipants(t, alice, aliceID, bobID)
 	for _, tt := range []struct {
 		name, body, reason string
 		kind               websocket.MessageType
