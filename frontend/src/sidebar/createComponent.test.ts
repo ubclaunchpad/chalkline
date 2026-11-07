@@ -36,13 +36,27 @@ describe('nextComponentName', () => {
 describe('collectComponentNames', () => {
   it('collects names from elements with valid component customData', () => {
     const names = collectComponentNames([
-      { customData: { v: 1, kind: 'database', name: 'Users DB', props: {} } },
-      { customData: { v: 1, kind: 'cache', name: 'Session cache', props: {} } },
+      {
+        customData: {
+          v: 1,
+          kind: 'database',
+          name: 'Users DB',
+          props: { engine: 'PostgreSQL', replicas: 1 },
+        },
+      },
+      {
+        customData: {
+          v: 1,
+          kind: 'cache',
+          name: 'Session cache',
+          props: { engine: 'Redis', strategy: 'Cache-aside', ttlSeconds: 300 },
+        },
+      },
     ])
     expect(names).toEqual(new Set(['Users DB', 'Session cache']))
   })
 
-  it('ignores elements without customData or with an unrelated shape', () => {
+  it('ignores elements without customData or with an unrelated or invalid shape', () => {
     const names = collectComponentNames([
       {},
       { customData: undefined },
@@ -52,6 +66,14 @@ describe('collectComponentNames', () => {
           v: 2,
           kind: 'database',
           name: 'Wrong version',
+          props: { engine: 'PostgreSQL', replicas: 1 },
+        },
+      },
+      {
+        customData: {
+          v: 1,
+          kind: 'database',
+          name: 'Missing props',
           props: {},
         },
       },
@@ -111,5 +133,19 @@ describe('createComponentSkeleton', () => {
     }
 
     expect(skeleton.label?.text).toBe('Database\ndatabase')
+  })
+
+  it('gives each new component its own props object', () => {
+    const first = createComponentSkeleton(database, { x: 0, y: 0 }, new Set())
+    const second = createComponentSkeleton(
+      database,
+      { x: 0, y: 0 },
+      new Set(['Database']),
+    )
+
+    const firstData = first.customData as { props: unknown }
+    const secondData = second.customData as { props: unknown }
+    expect(firstData.props).not.toBe(secondData.props)
+    expect(firstData.props).not.toBe(database.defaultProps)
   })
 })

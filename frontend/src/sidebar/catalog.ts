@@ -59,26 +59,3 @@ export const COMPONENT_HEIGHT = 100
 
 /** `dataTransfer` type used to carry a dragged kind onto the canvas. */
 export const COMPONENT_DRAG_MIME = 'application/x-chalkline-kind'
-
-/** The minimum a component's `customData` needs for name bookkeeping. */
-interface NamedComponentData {
-  v: 1
-  kind: ComponentKind
-  name: string
-  props: Record<string, unknown>
-}
-
-export function isComponentData(value: unknown): value is NamedComponentData {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const data = value as Record<string, unknown>
-  return (
-    data.v === 1 &&
-    typeof data.kind === 'string' &&
-    Object.hasOwn(CATALOG, data.kind) &&
-    typeof data.name === 'string' &&
-    typeof data.props === 'object' &&
-    data.props !== null
-  )
-}

@@ -14,20 +14,19 @@ export function Sidebar({ excalidrawAPI }: SidebarProps) {
 
   return (
     <div className="flex h-full shrink-0">
-      {!collapsed && (
-        <div
-          id={LIST_ID}
-          className="h-full w-56 overflow-y-auto border-r border-gray-200 bg-white"
-        >
-          <ul className="flex flex-col gap-2 p-3">
-            {catalog.map((entry) => (
-              <li key={entry.kind}>
-                <ComponentCard entry={entry} excalidrawAPI={excalidrawAPI} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div
+        id={LIST_ID}
+        hidden={collapsed}
+        className="h-full w-56 overflow-y-auto border-r border-gray-200 bg-white"
+      >
+        <ul className="flex flex-col gap-2 p-3">
+          {catalog.map((entry) => (
+            <li key={entry.kind}>
+              <ComponentCard entry={entry} excalidrawAPI={excalidrawAPI} />
+            </li>
+          ))}
+        </ul>
+      </div>
       <button
         type="button"
         onClick={() => {

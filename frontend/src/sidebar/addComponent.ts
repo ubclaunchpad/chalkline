@@ -42,13 +42,12 @@ function addComponentAtScenePoint(
   entry: CatalogEntry,
   center: ScenePoint,
 ): void {
-  const existingElements = api.getSceneElements()
-  const existingNames = collectComponentNames(existingElements)
+  const existingNames = collectComponentNames(api.getSceneElements())
   const skeleton = createComponentSkeleton(entry, center, existingNames)
   const newElements = convertToExcalidrawElements([skeleton])
 
   api.updateScene({
-    elements: [...existingElements, ...newElements],
+    elements: [...api.getSceneElementsIncludingDeleted(), ...newElements],
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   })
 }

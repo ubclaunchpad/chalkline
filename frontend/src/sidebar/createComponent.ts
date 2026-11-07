@@ -1,10 +1,6 @@
 import type { ExcalidrawElementSkeleton } from '@excalidraw/excalidraw/data/transform'
-import {
-  COMPONENT_HEIGHT,
-  COMPONENT_WIDTH,
-  isComponentData,
-  type CatalogEntry,
-} from './catalog'
+import { validateComponent } from '../catalog/validate'
+import { COMPONENT_HEIGHT, COMPONENT_WIDTH, type CatalogEntry } from './catalog'
 
 const ADAPTIVE_RADIUS_ROUNDNESS = 3 as const
 
@@ -20,8 +16,9 @@ export function collectComponentNames(
 ): Set<string> {
   const names = new Set<string>()
   for (const element of elements) {
-    if (isComponentData(element.customData)) {
-      names.add(element.customData.name)
+    const result = validateComponent(element.customData)
+    if (result.ok) {
+      names.add(result.data.name)
     }
   }
   return names
@@ -70,7 +67,7 @@ export function createComponentSkeleton(
       v: 1,
       kind: entry.kind,
       name,
-      props: entry.defaultProps,
+      props: { ...entry.defaultProps },
     },
   }
 }
