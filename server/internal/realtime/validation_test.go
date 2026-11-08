@@ -48,6 +48,8 @@ func TestPrepareMessage(t *testing.T) {
 		{"null type", `{"type":null}`, false},
 		{"numeric type", `{"type":1}`, false},
 		{"unsupported type", `{"type":"welcome"}`, false},
+		{"browser leave", `{"type":"leave","clientId":"c_other"}`, false},
+		{"browser participants", `{"type":"participants","clientIds":[]}`, false},
 		{"case sensitive", `{"type":"Change"}`, false},
 		{"trailing JSON", `{"type":"change"}{}`, false},
 		{"invalid UTF-8", "{\"type\":\"change\",\"x\":\"\xff\"}", false},
