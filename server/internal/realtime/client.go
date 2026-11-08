@@ -2,7 +2,6 @@ package realtime
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"time"
 
@@ -88,17 +87,7 @@ func (c *Client) readLoop(ctx context.Context, room *Room) {
 			room.broadcast(c, p.encoded)
 			continue
 		}
-		// Until rooms keep a scene, a valid change is relayed whole.
-		elements := make([]json.RawMessage, len(p.elements))
-		for i, element := range p.elements {
-			elements[i] = element.raw
-		}
-		msg, err := forwardedChange(p.fields, elements)
-		if err != nil {
-			c.enqueue(errorMessage(invalidMessage("message must be a JSON object"), p.batchID))
-			continue
-		}
-		room.broadcast(c, msg)
+		room.applyChange(c, p)
 	}
 }
 

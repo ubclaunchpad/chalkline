@@ -51,15 +51,18 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (h *Hub) join(boardID string, client *Client) *Room {
 	// Always acquire hub then room when both are needed. Keeping lookup and
 	// registration together prevents joining a room that was just deleted.
+	// The snapshot is queued under the room lock, so no change is missed
+	// between the snapshot and later broadcasts (G2).
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	room := h.rooms[boardID]
 	if room == nil {
-		room = &Room{clients: make(map[string]*Client)}
+		room = &Room{clients: make(map[string]*Client), scene: newScene()}
 		h.rooms[boardID] = room
 	}
 	room.mu.Lock()
 	defer room.mu.Unlock()
+	client.enqueue(snapshotMessage(room.scene.snapshot()))
 	room.clients[client.id] = client
 	return room // A pointer: every client uses the same Room, including its mutex.
 }

@@ -231,6 +231,16 @@ func sizedChange(size int) string {
 	return body + strings.Repeat(" ", size-len(body))
 }
 
+// paddedChange is a valid change of exactly size bytes that the room forwards:
+// one small new element marked "boundary", plus a top-level pad. Padding the
+// element itself would push the board past its size limit.
+func paddedChange(size int) string {
+	const prefix = `{"type":"change","elements":[{"id":"boundary","version":1,"versionNonce":1,` +
+		`"isDeleted":false,"marker":"boundary"}],"pad":"`
+	const suffix = `"}`
+	return prefix + strings.Repeat("x", size-len(prefix)-len(suffix)) + suffix
+}
+
 func TestRejectedMessagesKeepRoomWorking(t *testing.T) {
 	_, url, _ := startServer(t)
 	alice, aliceID := connect(t, url+"a")
@@ -263,7 +273,7 @@ func TestRejectedMessagesKeepRoomWorking(t *testing.T) {
 		})
 	}
 	// Exactly 1 MiB must remain acceptable, including after an oversized message.
-	send(t, alice, message{kind: websocket.MessageText, data: []byte(sizedChange(maxMessageBytes))})
+	send(t, alice, message{kind: websocket.MessageText, data: []byte(paddedChange(maxMessageBytes))})
 	if marker, from := receiveChange(t, bob); marker != "boundary" || from != aliceID {
 		t.Fatalf("message at size limit was not relayed: %q from %q", marker, from)
 	}
