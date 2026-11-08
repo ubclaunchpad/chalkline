@@ -18,6 +18,42 @@ forwards accepted messages to everyone else in that room, adding a trusted
 `{"type":"leave","clientId":"c_..."}` to the remaining clients and deletes an
 empty room. Reconnecting creates a new client ID; no board contents are stored.
 
+### Who is in the room
+
+After every join and departure, the server sends the room's complete roster to
+every client still in it:
+
+```json
+{ "type": "participants", "clientIds": ["c_alice", "c_bob"] }
+```
+
+The roster includes the recipient. Treat `clientIds` as a set: the order has no
+meaning, and each connected client appears exactly once. Each entry is one
+connection (one tab), not one person; a user with two tabs open appears twice.
+Clients should replace their whole membership list with each roster rather
+than adding or removing entries themselves. The browser parser ignores a roster
+that is empty or repeats an ID, keeping the previous list until a valid one
+arrives.
+
+A newcomer receives `welcome` first, then the roster that includes it. When
+someone disconnects, the remaining clients receive one `leave` for that client
+and then the roster without it, so existing cursor cleanup keeps working. A
+reconnect gets a new client ID and a fresh roster; the old ID does not appear
+again. No roster is sent when the last client leaves, because the room is
+deleted. A cursor that stops updating does not mean its client left; only
+`leave` and `participants` change membership.
+
+The server builds each roster from its own room membership and queues it under
+the room lock, in the same step as the join or departure. Every client
+therefore receives membership changes in the same order, and the last roster
+it receives matches the room. Rosters are temporary room state; they are not
+stored in PostgreSQL or in the board document.
+
+Sending the full roster costs more than separate join and remove events: each
+change sends N IDs to N clients. In return, a client never has to rebuild
+membership from a history of events, and any single roster is enough to
+correct it.
+
 Browser messages are UTF-8 JSON objects sent as WebSocket text messages:
 
 ```json
@@ -26,7 +62,9 @@ Browser messages are UTF-8 JSON objects sent as WebSocket text messages:
 ```
 
 Minimum validation checks the JSON object and its exact `type`, which must be
-`change` or `cursor`. Payload fields (including individual Excalidraw elements)
+`change` or `cursor`. Browsers cannot send `welcome`, `leave`, or
+`participants`; those receive the unsupported-type error below and never
+change room membership. Payload fields (including individual Excalidraw elements)
 are not validated yet; unknown fields are preserved. Every relayed message has
 `"from":"c_..."` set from the connection, replacing any browser-supplied value.
 This is a connection identity, not authentication or board access control.
@@ -58,13 +96,44 @@ Scenario: Participants exchange messages within a board
   And no sender receives its own message
   And Dan receives no messages from board a
 
+Scenario: A participant joins
+  Given Alice is on board a and has not moved her cursor
+  When Bob joins board a
+  Then Bob receives welcome first, then a roster containing Alice and Bob
+  And Alice receives a roster containing Alice and Bob
+
+Scenario: Membership changes stay within their board
+  Given Alice is on board a and Dan and Erin are on board b
+  When Bob joins and then leaves board a
+  Then Alice receives Bob's roster, leave, and updated roster
+  And Dan and Erin receive none of board a's lifecycle messages
+
+Scenario: Concurrent joins and departures settle
+  Given Alice is on board a
+  When twelve clients join at once and half of them leave immediately
+  Then every remaining client's last roster matches the server's room
+  And each connected client appears in it exactly once
+
+Scenario: A slow client is removed from the roster
+  Given a slow client's outgoing queue is full
+  When a broadcast cancels it and its connection is cleaned up
+  Then the remaining clients receive a leave for it and a roster without it
+
+Scenario: A browser cannot send lifecycle messages
+  Given Alice and Bob are on the same board
+  When Alice sends participants, welcome, or leave
+  Then Alice receives an error
+  And Bob receives no roster or leave, and the room's membership is unchanged
+
 Scenario: A participant disconnects
   Given Alice and Bob are on the same board
   When Alice disconnects
   Then Bob receives one leave message identifying Alice
+  And Bob then receives a roster containing only Bob
   And Bob can keep exchanging messages with another participant
   When all participants disconnect
   Then the room is removed
+  And a new connection receives a new client ID and a roster including it
 
 Scenario: An invalid message does not interrupt collaboration
   Given Alice and Bob are on the same board
