@@ -3,7 +3,6 @@ package realtime
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"net/http"
 	"sync"
 
@@ -76,14 +75,4 @@ func (h *Hub) leave(boardID string, room *Room, client *Client) {
 	if len(room.clients) == 0 {
 		delete(h.rooms, boardID)
 	}
-}
-
-func lifecycleMessage(kind, clientID string) message {
-	// A struct with only string fields always marshals successfully. Encoding
-	// happens once; recipients can share the resulting immutable bytes.
-	data, _ := json.Marshal(struct {
-		Type     string `json:"type"`
-		ClientID string `json:"clientId"`
-	}{Type: kind, ClientID: clientID})
-	return message{kind: websocket.MessageText, data: data}
 }
