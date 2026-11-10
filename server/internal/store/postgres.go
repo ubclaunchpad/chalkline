@@ -25,6 +25,12 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 // SaveSnapshot creates or touches the board row and inserts the snapshot in
 // one transaction, so a board never exists without its first snapshot.
 func (p *Postgres) SaveSnapshot(ctx context.Context, boardID string, elements json.RawMessage) error {
+	if !validID(boardID) {
+		return fmt.Errorf("invalid board id")
+	}
+	if _, err := elementMap(elements); err != nil {
+		return err
+	}
 	err := pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO boards (id) VALUES ($1)
@@ -32,6 +38,13 @@ func (p *Postgres) SaveSnapshot(ctx context.Context, boardID string, elements js
 			boardID,
 		); err != nil {
 			return fmt.Errorf("upsert board: %w", err)
+		}
+		var sequence int64
+		if err := tx.QueryRow(ctx, `SELECT operation_sequence FROM boards WHERE id = $1`, boardID).Scan(&sequence); err != nil {
+			return err
+		}
+		if sequence != 0 {
+			return ErrLogStarted
 		}
 		// Pass the JSON as a string; pgx would encode a []byte as bytea.
 		if _, err := tx.Exec(ctx,
