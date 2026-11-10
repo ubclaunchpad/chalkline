@@ -51,7 +51,14 @@ Copy `.env.example` to `.env`, then:
 
 The server does not connect to the database yet. The store's integration tests
 run against `DATABASE_URL` after `make db-up && make db-migrate`, and are
-skipped when it isn't set.
+skipped when it isn't set. CI starts PostgreSQL, applies migrations, and runs
+these tests in the existing server job.
+
+The store supports ordered accepted-edit batches, recovery from a snapshot plus
+later operations, and explicit checkpoint creation. This is the storage-only
+part of #48: drawing in the browser still does not write to PostgreSQL. Room
+integration and automatic saving follow PR #70. See the persistence contract in
+[Architecture](docs/architecture.md#storage-contract).
 
 ### Checks
 

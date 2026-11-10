@@ -46,3 +46,76 @@ Local recovery after a disconnect, joining an active board, and reconciling loca
 - **Canvas customization:** Start with embedded Excalidraw. Consider a fork only if the component experience cannot be built through its supported extension points.
 
 See the [roadmap](roadmap.md) for possible product directions and [team workflow](workflow.md) for subsystem ownership.
+
+## Storage contract
+
+The storage-only first part of #48 adds an operation log and checkpoint methods.
+It follows #47 / PR #70's scene format, but does not yet connect rooms to the
+database. Runtime loading, the log flush cadence, checkpoint cadence, and a
+checkpoint when the last participant leaves belong to the integration follow-up.
+No automatic saving or browser saved-state signal is implemented here.
+
+`AppendOperation(ctx, boardID, expectedSequence, elements)` commits one nonempty
+batch of already accepted winning elements, returning its next sequence. The
+first append creates the board. The caller must serialize accepted batches in
+room order and use the last returned sequence; a stale sequence returns
+`ErrSequenceConflict`. A successful call means the transaction committed. A
+commit error can have an unknown outcome: reload and reconcile before retrying,
+rather than blindly appending again. There is no in-memory write buffer here.
+
+`LoadBoard` returns `Snapshot{Elements, ThroughSequence}` from a consistent
+read transaction. It loads the newest checkpoint and only operations after its
+marker, checking that every sequence through the durable head exists.
+`Checkpoint` rebuilds and stores that result while holding the same per-board
+row lock as append. An unchanged checkpoint is reused. Operations and old
+snapshots are retained; retention cleanup is deferred. Writes for separate
+boards do not share an application-wide lock.
+
+`RebuildSnapshot` is the pure reconstruction function. Logged batches contain
+full accepted element revisions, not patches or browser message envelopes. It
+replaces elements by ID in operation order, retains tombstones and every JSON
+field (including bindings, fractional indexes and customData), and emits elements
+sorted by ID, as PR #70 does. PostgreSQL JSONB preserves values, not original
+whitespace or object-key order. Storage checks array/object shape and unique
+valid IDs; the room remains responsible for version/nonce validation, choosing
+winners, rejecting conflicts, and enforcing transport limits. Do not pass raw
+browser submissions or cursor/presence messages to this API.
+
+Migration 00002 gives existing snapshots sequence zero. `SaveSnapshot` remains
+available for initial snapshot-only boards, but returns `ErrLogStarted` once an
+operation has been committed. This prevents an untracked snapshot from replacing
+logged state. Use `Checkpoint` thereafter; `LatestSnapshot` still reads only the
+latest saved checkpoint, whereas `LoadBoard` includes the durable log tail.
+
+Unknown boards return `ErrNotFound`. Corrupt history, cancellation and database
+failures return errors, never an empty or partially recovered scene. Failed
+transactions leave no new operation, advanced counter or checkpoint behind.
+Only committed data is recoverable; the integration follow-up must define how
+room acceptance relates to commits and what happens while PostgreSQL is down.
+
+Storage acceptance scenarios (automated in store tests):
+
+```gherkin
+Scenario: Recover durable edits with a fresh store connection
+  Given a board has a checkpoint and later committed edits
+  When a fresh store loads the board
+  Then it reconstructs the scene through the durable head
+  And deletion tombstones and component data remain intact
+
+Scenario: Checkpoint without replaying covered operations
+  Given a checkpoint includes operations through sequence N
+  When the board is loaded again
+  Then only operations after N are replayed
+  And repeated checkpoints without new edits create no extra snapshot
+
+Scenario: Reject an out-of-order or failed write
+  Given a board has a durable operation sequence
+  When an append uses a stale expected sequence or its transaction fails
+  Then no partial operation or counter update is committed
+```
+
+Run `make db-up`, `make db-migrate`, and `make check-server` with the local
+`DATABASE_URL` configured. CI provisions a PostgreSQL service and runs migrations
+before the server checks. Store tests use unique board IDs; database tests skip
+locally when `DATABASE_URL` is absent. Fresh-store tests demonstrate durable
+storage recovery, not the still-deferred WebSocket/server restart integration.

@@ -48,6 +48,20 @@ jobs:
     name: Server (gofmt, mod tidy, vet, build, race tests)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: chalkline
+          POSTGRES_PASSWORD: chalkline
+          POSTGRES_DB: chalkline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chalkline -d chalkline"
+          --health-interval 2s --health-timeout 5s --health-retries 15
+    env:
+      DATABASE_URL: postgres://chalkline:chalkline@localhost:5432/chalkline?sslmode=disable
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,6 +73,7 @@ jobs:
           # module cache on. Enable caching with
           # cache-dependency-path: server/go.sum once the first dependency lands.
           cache: false
+      - run: make db-migrate
       - run: make check-server
 
   workflows:
