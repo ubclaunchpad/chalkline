@@ -39,11 +39,8 @@ describe('parseServerMessage', () => {
       expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
     })
 
-    it('parses the authoritative room roster', () => {
-      const message = {
-        type: 'participants',
-        clientIds: ['c_7f3a', 'c_91bd'],
-      }
+    it('parses participants', () => {
+      const message = { type: 'participants', clientIds: ['c_7f3a', 'c_91bd'] }
       expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
     })
 
@@ -94,14 +91,25 @@ describe('parseServerMessage', () => {
       ],
       ['leave without clientId', '{"type":"leave"}'],
       ['participants without clientIds', '{"type":"participants"}'],
-      ['empty participants', '{"type":"participants","clientIds":[]}'],
       [
-        'participants with non-string IDs',
+        'participants with clientIds that are not an array',
+        '{"type":"participants","clientIds":"c_1"}',
+      ],
+      [
+        'participants with a numeric clientId',
         '{"type":"participants","clientIds":["c_1",7]}',
       ],
       [
-        'participants with duplicate IDs',
-        '{"type":"participants","clientIds":["c_1","c_1"]}',
+        'participants with a null clientId',
+        '{"type":"participants","clientIds":["c_1",null]}',
+      ],
+      [
+        'participants with no clientIds',
+        '{"type":"participants","clientIds":[]}',
+      ],
+      [
+        'participants with a duplicate clientId',
+        '{"type":"participants","clientIds":["c_1","c_2","c_1"]}',
       ],
       ['error without message', '{"type":"error"}'],
     ])('returns null for %s', (_label, text) => {
