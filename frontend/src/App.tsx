@@ -1,10 +1,11 @@
-import { lazy, Suspense, useState } from 'react'
+import { useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
 import { CollaboratorList } from './presence/CollaboratorList'
 import { loadIdentity, saveIdentity } from './presence/identity'
 import { NameDialog } from './presence/NameDialog'
+import './presence/presence.css'
 import { usePresence } from './presence/usePresence'
 import { BoardConnectionProvider } from './realtime/BoardConnectionProvider'
 import { ConnectionStatus } from './realtime/ConnectionStatus'
@@ -13,13 +14,6 @@ import { useSceneSync } from './realtime/useSceneSync'
 import { Sidebar } from './sidebar/Sidebar'
 import { useCanvasDropHandlers } from './sidebar/useCanvasDrop'
 
-// Vite removes this demo import entirely from production builds.
-const PresenceDemo =
-  import.meta.env.DEV &&
-  new URLSearchParams(window.location.search).get('presenceDemo') === '1'
-    ? lazy(() => import('./presence/PresenceDemo'))
-    : null
-
 function BoardCanvas() {
   const connection = useBoardConnection()
   const [excalidrawApi, setExcalidrawApi] =
@@ -27,7 +21,7 @@ function BoardCanvas() {
   const [identity, setIdentity] = useState(loadIdentity)
   const handleSceneChange = useSceneSync(connection, excalidrawApi)
   const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
-  const { connectedClientIds, identities, onPointerUpdate } = usePresence(
+  const { participants, onPointerUpdate } = usePresence(
     identity,
     connection ?? undefined,
     excalidrawApi,
@@ -45,8 +39,7 @@ function BoardCanvas() {
             identity && (
               <CollaboratorList
                 identity={identity}
-                connectedClientIds={connectedClientIds}
-                identities={identities}
+                participants={participants}
               />
             )
           }
@@ -66,11 +59,7 @@ function BoardCanvas() {
 }
 
 function App() {
-  return PresenceDemo ? (
-    <Suspense fallback={<p>Loading canvas…</p>}>
-      <PresenceDemo />
-    </Suspense>
-  ) : (
+  return (
     <BoardConnectionProvider>
       <BoardCanvas />
     </BoardConnectionProvider>

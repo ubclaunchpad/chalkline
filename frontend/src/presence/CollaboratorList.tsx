@@ -1,13 +1,12 @@
 import type { Identity } from './identity'
+import type { Participant } from './presence'
 
 export function CollaboratorList({
   identity,
-  connectedClientIds,
-  identities,
+  participants,
 }: {
   identity: Identity
-  connectedClientIds: ReadonlySet<string>
-  identities: ReadonlyMap<string, Identity>
+  participants: ReadonlyMap<string, Participant>
 }) {
   return (
     <section
@@ -25,23 +24,22 @@ export function CollaboratorList({
           />
           <span className="break-all">{identity.name} (you)</span>
         </li>
-        {[...connectedClientIds].sort().map((clientId) => {
-          const participantIdentity = identities.get(clientId)
-          return (
-            <li key={clientId} className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="h-3 w-3 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: participantIdentity?.color ?? '#cbd5e1',
-                }}
-              />
-              <span className="break-all">
-                {participantIdentity?.name ?? 'Joining…'}
-              </span>
-            </li>
-          )
-        })}
+        {[...participants]
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([clientId, participant]) => {
+            return (
+              <li key={clientId} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{
+                    backgroundColor: participant.color,
+                  }}
+                />
+                <span className="break-all">{participant.name}</span>
+              </li>
+            )
+          })}
       </ul>
     </section>
   )

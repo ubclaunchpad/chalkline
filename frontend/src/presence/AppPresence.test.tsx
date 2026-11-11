@@ -58,22 +58,10 @@ afterEach(() => {
 })
 
 describe('App presence integration', () => {
-  it('keeps the roster received before a first-time visitor chooses a name', () => {
+  it('saves a first-time visitor identity and shows it in the participant list', () => {
     localStorage.removeItem('chalkline.displayName')
     render(<App />)
     expect(FakeWebSocket.instances).toHaveLength(1)
-
-    act(() => {
-      FakeWebSocket.instances[0].serverOpens()
-      FakeWebSocket.instances[0].serverSends({
-        type: 'welcome',
-        clientId: 'self',
-      })
-      FakeWebSocket.instances[0].serverSends({
-        type: 'participants',
-        clientIds: ['self', 'remote'],
-      })
-    })
 
     fireEvent.change(screen.getByLabelText('Display name'), {
       target: { value: 'First visitor' },
@@ -81,7 +69,7 @@ describe('App presence integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join board' }))
 
     expect(screen.getByText('First visitor (you)')).toBeTruthy()
-    expect(screen.getByText('Joining…')).toBeTruthy()
+    expect(localStorage.getItem('chalkline.displayName')).toBe('First visitor')
   })
 
   it('uses the shared board connection to render remote cursors and names', () => {
@@ -96,14 +84,6 @@ describe('App presence integration', () => {
       })
     })
     expect(screen.getByText('Local person (you)')).toBeTruthy()
-
-    act(() => {
-      FakeWebSocket.instances[0].serverSends({
-        type: 'participants',
-        clientIds: ['self', 'remote'],
-      })
-    })
-    expect(screen.getByText('Joining…')).toBeTruthy()
 
     act(() => {
       FakeWebSocket.instances[0].serverSends({
