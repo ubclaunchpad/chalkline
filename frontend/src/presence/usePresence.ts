@@ -5,24 +5,34 @@ import type {
 } from '@excalidraw/excalidraw/types'
 import type { Identity } from './identity'
 import { startPresence, toCollaborators } from './presence'
-import type { Participant, PresenceConnection } from './presence'
+import type { PresenceConnection } from './presence'
 
 export function usePresence(
   identity: Identity | null,
   connection: PresenceConnection | undefined,
   api: ExcalidrawImperativeAPI | null,
 ) {
-  const [participants, setParticipants] = useState<
-    ReadonlyMap<string, Participant>
-  >(new Map())
+  const [connectedClientIds, setConnectedClientIds] = useState<
+    ReadonlySet<string>
+  >(new Set())
+  const [identities, setIdentities] = useState<ReadonlyMap<string, Identity>>(
+    new Map(),
+  )
   const session = useRef<ReturnType<typeof startPresence> | null>(null)
 
   useEffect(() => {
     if (!identity || !connection || !api) return
-    const active = startPresence(connection, identity, (next) => {
-      setParticipants(next)
-      api.updateScene({ collaborators: toCollaborators(next) })
-    })
+    const active = startPresence(
+      connection,
+      identity,
+      (next) => {
+        api.updateScene({ collaborators: toCollaborators(next) })
+      },
+      {
+        onMembership: setConnectedClientIds,
+        onIdentities: setIdentities,
+      },
+    )
     session.current = active
     return () => {
       session.current = null
@@ -37,7 +47,8 @@ export function usePresence(
     session.current?.pointer(pointer)
   }, [])
   return {
-    participants: connection ? participants : new Map<string, Participant>(),
+    connectedClientIds,
+    identities,
     onPointerUpdate,
   }
 }

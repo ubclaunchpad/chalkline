@@ -39,6 +39,14 @@ describe('parseServerMessage', () => {
       expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
     })
 
+    it('parses the authoritative room roster', () => {
+      const message = {
+        type: 'participants',
+        clientIds: ['c_7f3a', 'c_91bd'],
+      }
+      expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
+    })
+
     it('parses error', () => {
       const message = { type: 'error', message: 'message too large' }
       expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
@@ -85,6 +93,16 @@ describe('parseServerMessage', () => {
         '{"type":"cursor","from":"c_1","x":5,"y":1,"name":"A"}',
       ],
       ['leave without clientId', '{"type":"leave"}'],
+      ['participants without clientIds', '{"type":"participants"}'],
+      ['empty participants', '{"type":"participants","clientIds":[]}'],
+      [
+        'participants with non-string IDs',
+        '{"type":"participants","clientIds":["c_1",7]}',
+      ],
+      [
+        'participants with duplicate IDs',
+        '{"type":"participants","clientIds":["c_1","c_1"]}',
+      ],
       ['error without message', '{"type":"error"}'],
     ])('returns null for %s', (_label, text) => {
       expect(parseServerMessage(text)).toBeNull()

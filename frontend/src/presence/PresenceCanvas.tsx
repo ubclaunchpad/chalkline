@@ -8,8 +8,8 @@ import { usePresence } from './usePresence'
 import type { PresenceConnection } from './presence'
 import './presence.css'
 
-// #27 will pass the app's existing shared connection here. Until then this
-// renders only the local identity, with no simulated people or extra socket.
+// The development-only demo injects its simulated connection here. Production
+// binds usePresence to the app's existing canvas in App.tsx.
 export function PresenceCanvas({
   connection,
 }: {
@@ -17,7 +17,7 @@ export function PresenceCanvas({
 }) {
   const [identity, setIdentity] = useState(loadIdentity)
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null)
-  const { participants, onPointerUpdate } = usePresence(
+  const { connectedClientIds, identities, onPointerUpdate } = usePresence(
     identity,
     connection,
     api,
@@ -29,7 +29,11 @@ export function PresenceCanvas({
         onPointerUpdate={onPointerUpdate}
         renderTopRightUI={() =>
           identity && (
-            <CollaboratorList identity={identity} participants={participants} />
+            <CollaboratorList
+              identity={identity}
+              connectedClientIds={connectedClientIds}
+              identities={identities}
+            />
           )
         }
       />

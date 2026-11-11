@@ -27,6 +27,11 @@ export interface Participant extends Identity {
   lastSeen: number
 }
 
+export interface PresenceObservers {
+  onMembership?: (clientIds: ReadonlySet<string>) => void
+  onIdentities?: (identities: ReadonlyMap<string, Identity>) => void
+}
+
 export const CURSOR_INTERVAL_MS = 67 // ceil(1000 / 15), never above 15/s
 export const INACTIVITY_MS = 10000
 type Pointer = Parameters<
@@ -52,9 +57,13 @@ export function startPresence(
   connection: PresenceConnection,
   identity: Identity,
   onChange: (participants: ReadonlyMap<string, Participant>) => void,
+  observers: PresenceObservers = {},
 ) {
   const participants = new Map<string, Participant>()
+  const identities = new Map<string, Identity>()
+  const connectedClientIds = new Set<string>()
   let disposed = false
+  let receivedRoster = false
   let lastSent: { x: number; y: number } | undefined
   let pending: { x: number; y: number } | undefined
   let lastSentAt = -Infinity
@@ -63,7 +72,15 @@ export function startPresence(
   const publish = () => {
     onChange(new Map(participants))
   }
+  const publishMembership = () => {
+    observers.onMembership?.(new Set(connectedClientIds))
+  }
+  const publishIdentities = () => {
+    observers.onIdentities?.(new Map(identities))
+  }
   publish()
+  publishMembership()
+  publishIdentities()
   const scheduleExpiry = () => {
     clearTimeout(expiryTimer)
     if (disposed || !participants.size) return
@@ -92,9 +109,18 @@ export function startPresence(
     pending = undefined
     lastSent = undefined
     lastSentAt = -Infinity
+    receivedRoster = false
     if (participants.size) {
       participants.clear()
       publish()
+    }
+    if (connectedClientIds.size) {
+      connectedClientIds.clear()
+      publishMembership()
+    }
+    if (identities.size) {
+      identities.clear()
+      publishIdentities()
     }
   }
   const flush = () => {
@@ -127,14 +153,60 @@ export function startPresence(
         y: message.y,
         lastSeen: performance.now(),
       })
+      identities.set(message.from, {
+        name: message.name,
+        color: message.color,
+      })
+      publishIdentities()
+      if (!receivedRoster && !connectedClientIds.has(message.from)) {
+        connectedClientIds.add(message.from)
+        publishMembership()
+      }
       publish()
       scheduleExpiry()
     }),
     connection.on('leave', ({ clientId }) => {
+      let changed = false
       if (!disposed && participants.delete(clientId)) {
+        changed = true
+      }
+      if (disposed) return
+      changed = connectedClientIds.delete(clientId) || changed
+      const identityRemoved = identities.delete(clientId)
+      if (changed) publish()
+      if (changed || identityRemoved) scheduleExpiry()
+      if (changed) publishMembership()
+      if (identityRemoved) publishIdentities()
+    }),
+    connection.on('participants', ({ clientIds }) => {
+      if (disposed) return
+      receivedRoster = true
+      const selfId = connection.clientId()
+      const nextIds = new Set(
+        clientIds.filter((clientId) => clientId !== selfId),
+      )
+      let cursorChanged = false
+      for (const clientId of participants.keys()) {
+        if (!nextIds.has(clientId)) {
+          participants.delete(clientId)
+          cursorChanged = true
+        }
+      }
+      let identityChanged = false
+      for (const clientId of identities.keys()) {
+        if (!nextIds.has(clientId)) {
+          identities.delete(clientId)
+          identityChanged = true
+        }
+      }
+      connectedClientIds.clear()
+      nextIds.forEach((clientId) => connectedClientIds.add(clientId))
+      if (cursorChanged) {
         publish()
         scheduleExpiry()
       }
+      publishMembership()
+      if (identityChanged) publishIdentities()
     }),
     connection.on('welcome', () => {
       if (!disposed) reset()

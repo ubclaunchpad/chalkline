@@ -1,27 +1,79 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useState } from 'react'
+import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
-import { syncBoardIdToUrl } from './realtime/useBoardConnection'
-import { PresenceCanvas } from './presence/PresenceCanvas'
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { CollaboratorList } from './presence/CollaboratorList'
+import { loadIdentity, saveIdentity } from './presence/identity'
+import { NameDialog } from './presence/NameDialog'
+import { usePresence } from './presence/usePresence'
+import { BoardConnectionProvider } from './realtime/BoardConnectionProvider'
+import { ConnectionStatus } from './realtime/ConnectionStatus'
+import { useBoardConnection } from './realtime/useBoardConnection'
+import { useSceneSync } from './realtime/useSceneSync'
+import { Sidebar } from './sidebar/Sidebar'
+import { useCanvasDropHandlers } from './sidebar/useCanvasDrop'
 
 // Vite removes this demo import entirely from production builds.
-const Canvas =
+const PresenceDemo =
   import.meta.env.DEV &&
   new URLSearchParams(window.location.search).get('presenceDemo') === '1'
     ? lazy(() => import('./presence/PresenceDemo'))
-    : PresenceCanvas
+    : null
 
-function App() {
-  // Runs once on mount. The board id will be passed to the connection in #27.
-  useEffect(() => {
-    syncBoardIdToUrl()
-  }, [])
+function BoardCanvas() {
+  const connection = useBoardConnection()
+  const [excalidrawApi, setExcalidrawApi] =
+    useState<ExcalidrawImperativeAPI | null>(null)
+  const [identity, setIdentity] = useState(loadIdentity)
+  const handleSceneChange = useSceneSync(connection, excalidrawApi)
+  const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
+  const { connectedClientIds, identities, onPointerUpdate } = usePresence(
+    identity,
+    connection ?? undefined,
+    excalidrawApi,
+  )
 
   return (
-    <main className="h-screen w-screen">
-      <Suspense fallback={<p>Loading canvas…</p>}>
-        <Canvas />
-      </Suspense>
+    <main className="flex h-screen w-screen">
+      <Sidebar excalidrawAPI={excalidrawApi} />
+      <div className="relative flex-1" onDragOver={onDragOver} onDrop={onDrop}>
+        <Excalidraw
+          excalidrawAPI={setExcalidrawApi}
+          onChange={handleSceneChange}
+          onPointerUpdate={onPointerUpdate}
+          renderTopRightUI={() =>
+            identity && (
+              <CollaboratorList
+                identity={identity}
+                connectedClientIds={connectedClientIds}
+                identities={identities}
+              />
+            )
+          }
+        />
+        <ConnectionStatus />
+      </div>
+      {!identity && (
+        <NameDialog
+          onSubmit={(next) => {
+            saveIdentity(next)
+            setIdentity(next)
+          }}
+        />
+      )}
     </main>
+  )
+}
+
+function App() {
+  return PresenceDemo ? (
+    <Suspense fallback={<p>Loading canvas…</p>}>
+      <PresenceDemo />
+    </Suspense>
+  ) : (
+    <BoardConnectionProvider>
+      <BoardCanvas />
+    </BoardConnectionProvider>
   )
 }
 

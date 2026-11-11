@@ -23,6 +23,7 @@ export type ServerMessage =
       color: string
     }
   | { type: 'leave'; clientId: string }
+  | { type: 'participants'; clientIds: readonly string[] }
   | { type: 'error'; message: string }
 
 export type ServerMessageType = ServerMessage['type']
@@ -78,6 +79,20 @@ export function parseServerMessage(text: string): ServerMessage | null {
     case 'leave':
       if (typeof data.clientId !== 'string') return null
       return { type: 'leave', clientId: data.clientId }
+
+    case 'participants':
+      if (
+        !Array.isArray(data.clientIds) ||
+        data.clientIds.length === 0 ||
+        !data.clientIds.every((clientId) => typeof clientId === 'string') ||
+        new Set(data.clientIds).size !== data.clientIds.length
+      ) {
+        return null
+      }
+      return {
+        type: 'participants',
+        clientIds: data.clientIds,
+      }
 
     case 'error':
       if (typeof data.message !== 'string') return null

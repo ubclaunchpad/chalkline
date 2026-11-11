@@ -186,6 +186,56 @@ describe('cursor sending', () => {
   })
 })
 
+describe('room membership and cursor state', () => {
+  it('keeps connected membership separate from cursor expiry and replaces it from the roster', () => {
+    const mock = mockConnection()
+    let membership: ReadonlySet<string> = new Set()
+    let identities: ReadonlyMap<
+      string,
+      ReturnType<typeof createIdentity>
+    > = new Map()
+    let activeCursors: ReadonlyMap<string, Participant> = new Map()
+    const session = startPresence(
+      mock.connection,
+      createIdentity('Kathy'),
+      (next) => {
+        activeCursors = next
+      },
+      {
+        onMembership: (next) => {
+          membership = next
+        },
+        onIdentities: (next) => {
+          identities = next
+        },
+      },
+    )
+
+    mock.emit({ type: 'participants', clientIds: ['self', 'alice', 'bob'] })
+    mock.emit(cursor('alice'))
+    expect(membership).toEqual(new Set(['alice', 'bob']))
+    expect(identities.get('alice')).toEqual(createIdentity('Alice'))
+    expect(activeCursors.has('alice')).toBe(true)
+
+    vi.advanceTimersByTime(INACTIVITY_MS)
+    expect(activeCursors.has('alice')).toBe(false)
+    expect(membership).toEqual(new Set(['alice', 'bob']))
+    expect(identities.get('alice')).toEqual(createIdentity('Alice'))
+
+    mock.emit({ type: 'leave', clientId: 'alice' })
+    mock.emit({ type: 'participants', clientIds: ['self', 'bob'] })
+    expect(membership).toEqual(new Set(['bob']))
+    expect(identities.has('alice')).toBe(false)
+    expect(activeCursors.has('alice')).toBe(false)
+
+    mock.setStatus('closed')
+    expect(membership.size).toBe(0)
+    expect(identities.size).toBe(0)
+
+    session.dispose()
+  })
+})
+
 describe('remote presence', () => {
   it('tracks by clientId, supports duplicate names, and replaces updates immutably', () => {
     const test = setup()
@@ -278,7 +328,7 @@ describe('remote presence', () => {
     const test = setup()
     test.session.pointer(point(1))
     test.session.pointer(point(2))
-    expect(test.listenerCount()).toBe(4)
+    expect(test.listenerCount()).toBe(5)
     test.session.dispose()
     const calls = test.update.mock.calls.length
     test.emit(cursor())
