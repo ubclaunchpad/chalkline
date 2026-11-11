@@ -21,10 +21,10 @@ export function usePresence(
   const session = useRef<ReturnType<typeof startPresence> | null>(null)
 
   useEffect(() => {
-    if (!identity || !connection || !api) return
+    if (!connection || !api) return
     const active = startPresence(
       connection,
-      identity,
+      null,
       (next) => {
         api.updateScene({ collaborators: toCollaborators(next) })
       },
@@ -39,7 +39,11 @@ export function usePresence(
       active.dispose()
       api.updateScene({ collaborators: new Map() })
     }
-  }, [api, connection, identity])
+  }, [api, connection])
+
+  useEffect(() => {
+    session.current?.setIdentity(identity)
+  }, [identity])
 
   const onPointerUpdate = useCallback<
     NonNullable<ExcalidrawProps['onPointerUpdate']>

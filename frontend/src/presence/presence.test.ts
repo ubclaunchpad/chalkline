@@ -97,6 +97,31 @@ afterEach(() => {
 })
 
 describe('cursor sending', () => {
+  it('waits for an identity before sending while still tracking membership', () => {
+    const mock = mockConnection()
+    let membership: ReadonlySet<string> = new Set()
+    const session = startPresence(mock.connection, null, () => undefined, {
+      onMembership: (next) => {
+        membership = next
+      },
+    })
+
+    mock.emit({ type: 'participants', clientIds: ['self', 'alice'] })
+    session.pointer(point(1))
+    expect(membership).toEqual(new Set(['alice']))
+    expect(mock.connection.send).not.toHaveBeenCalled()
+
+    session.setIdentity(createIdentity('Kathy'))
+    session.pointer(point(2))
+    expect(mock.connection.send).toHaveBeenCalledWith({
+      type: 'cursor',
+      x: 2,
+      y: -88.25,
+      ...createIdentity('Kathy'),
+    })
+    session.dispose()
+  })
+
   it('sends board coordinates unchanged and only when moved', () => {
     const { session, connection } = setup()
     session.pointer(point(120.5))

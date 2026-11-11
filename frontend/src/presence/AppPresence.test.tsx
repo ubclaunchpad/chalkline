@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   Collaborator,
@@ -33,6 +33,18 @@ beforeEach(() => {
   FakeWebSocket.instances = []
   updateScene.mockClear()
   localStorage.setItem('chalkline.displayName', 'Local person')
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value(this: HTMLDialogElement) {
+      this.open = true
+    },
+  })
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true,
+    value(this: HTMLDialogElement) {
+      this.open = false
+    },
+  })
   vi.stubGlobal('WebSocket', FakeWebSocket)
   window.history.replaceState(null, '', '/?board=presence-integration')
 })
@@ -40,10 +52,38 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal')
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
   localStorage.clear()
 })
 
 describe('App presence integration', () => {
+  it('keeps the roster received before a first-time visitor chooses a name', () => {
+    localStorage.removeItem('chalkline.displayName')
+    render(<App />)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    act(() => {
+      FakeWebSocket.instances[0].serverOpens()
+      FakeWebSocket.instances[0].serverSends({
+        type: 'welcome',
+        clientId: 'self',
+      })
+      FakeWebSocket.instances[0].serverSends({
+        type: 'participants',
+        clientIds: ['self', 'remote'],
+      })
+    })
+
+    fireEvent.change(screen.getByLabelText('Display name'), {
+      target: { value: 'First visitor' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Join board' }))
+
+    expect(screen.getByText('First visitor (you)')).toBeTruthy()
+    expect(screen.getByText('Joining…')).toBeTruthy()
+  })
+
   it('uses the shared board connection to render remote cursors and names', () => {
     render(<App />)
     expect(FakeWebSocket.instances).toHaveLength(1)

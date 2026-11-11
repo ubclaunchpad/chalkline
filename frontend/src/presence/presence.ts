@@ -55,10 +55,11 @@ export function toCollaborators(
 
 export function startPresence(
   connection: PresenceConnection,
-  identity: Identity,
+  identity: Identity | null,
   onChange: (participants: ReadonlyMap<string, Participant>) => void,
   observers: PresenceObservers = {},
 ) {
+  let currentIdentity = identity
   const participants = new Map<string, Participant>()
   const identities = new Map<string, Identity>()
   const connectedClientIds = new Set<string>()
@@ -128,9 +129,14 @@ export function startPresence(
     if (disposed || !pending) return
     const point = pending
     pending = undefined
-    if (connection.status() !== 'open' || !connection.clientId()) return
+    if (
+      connection.status() !== 'open' ||
+      !connection.clientId() ||
+      !currentIdentity
+    )
+      return
     if (lastSent?.x === point.x && lastSent.y === point.y) return
-    connection.send({ type: 'cursor', ...point, ...identity })
+    connection.send({ type: 'cursor', ...point, ...currentIdentity })
     lastSent = point
     lastSentAt = performance.now()
   }
@@ -216,6 +222,9 @@ export function startPresence(
     }),
   ]
   return {
+    setIdentity(nextIdentity: Identity | null) {
+      currentIdentity = nextIdentity
+    },
     pointer(pointer: Pointer) {
       if (
         disposed ||
