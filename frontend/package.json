@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
+    "@tabler/icons-react": "^3.51.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

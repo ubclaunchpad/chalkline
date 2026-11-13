@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { DEFAULT_THEME } from './design/theme'
 import { BoardConnectionProvider } from './realtime/BoardConnectionProvider'
 import { ConnectionStatus } from './realtime/ConnectionStatus'
 import { useBoardConnection } from './realtime/useBoardConnection'
@@ -17,12 +18,13 @@ function BoardCanvas() {
   const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
 
   return (
-    <main className="flex h-screen w-screen">
+    <main className="flex h-screen w-screen bg-canvas font-sans text-body">
       <Sidebar excalidrawAPI={excalidrawApi} />
       <div className="relative flex-1" onDragOver={onDragOver} onDrop={onDrop}>
         <Excalidraw
           excalidrawAPI={setExcalidrawApi}
           onChange={handleSceneChange}
+          theme={DEFAULT_THEME}
         />
         <ConnectionStatus />
       </div>

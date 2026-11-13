@@ -10,6 +10,7 @@ import { SCENE_SEND_INTERVAL_MS } from './realtime/useSceneSync'
 interface MockExcalidrawProps {
   excalidrawAPI?: (api: ExcalidrawImperativeAPI) => void
   onChange?: (elements: readonly OrderedExcalidrawElement[]) => void
+  theme?: 'dark' | 'light'
 }
 
 const mockExcalidraw = vi.hoisted(() => {
@@ -116,6 +117,17 @@ afterEach(() => {
 })
 
 describe('App scene synchronization', () => {
+  it('loads Excalidraw in Chalkline dark mode', () => {
+    render(<App />)
+
+    expect(mockExcalidraw.props?.theme).toBe('dark')
+    expect(
+      document
+        .getElementById('component-sidebar-list')
+        ?.classList.contains('text-gray-900'),
+    ).toBe(true)
+  })
+
   it('sends local changes through the one shared board connection', () => {
     render(<App />)
     expect(FakeWebSocket.instances).toHaveLength(1)
