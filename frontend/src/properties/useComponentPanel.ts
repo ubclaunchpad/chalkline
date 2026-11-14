@@ -4,6 +4,7 @@ import type {
   ExcalidrawImperativeAPI,
 } from '@excalidraw/excalidraw/types'
 import { useCallback, useState } from 'react'
+import { relabelComponent } from './componentLabel.ts'
 import { fieldErrors } from './fieldErrors.ts'
 import {
   selectedComponent,
@@ -101,10 +102,28 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
 
       setPanelErrors(null)
       const updated: OrderedExcalidrawElement = result.element
-      // Scene sync notices the bumped version and sends it to other clients.
+      // updateComponent returns the same element when nothing changed.
+      if (updated === element) {
+        return
+      }
+
+      // A rename must also change the text drawn on the box, in the same
+      // update, so the board never shows a stale name.
+      const replacements = new Map<string, OrderedExcalidrawElement>([
+        [updated.id, updated],
+      ])
+      const label: OrderedExcalidrawElement | null = relabelComponent(
+        updated,
+        elements,
+      )
+      if (label) {
+        replacements.set(label.id, label)
+      }
+
+      // Scene sync notices the bumped versions and sends them to other clients.
       api.updateScene({
-        elements: elements.map((el: OrderedExcalidrawElement) =>
-          el.id === updated.id ? updated : el,
+        elements: elements.map(
+          (el: OrderedExcalidrawElement) => replacements.get(el.id) ?? el,
         ),
       })
     },
