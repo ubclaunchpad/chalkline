@@ -42,11 +42,11 @@ export function PropertyPanel({
   return (
     <aside
       aria-label="Component settings"
-      className="absolute top-28 right-4 z-10 flex w-64 flex-col gap-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm"
+      className="absolute inset-y-0 right-0 z-10 flex w-50 flex-col gap-3 overflow-y-auto border-l border-border bg-bg p-4 motion-safe:animate-panel-in"
     >
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">{kind.label}</h2>
-        <p className="text-xs text-gray-500">{kind.description}</p>
+        <h2 className="text-body font-extrabold text-ink">{kind.label}</h2>
+        <p className="text-xs text-ink-muted">{kind.description}</p>
       </div>
 
       <SettingInput

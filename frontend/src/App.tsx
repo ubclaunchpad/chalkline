@@ -23,7 +23,11 @@ function BoardCanvas() {
   return (
     <main className="flex h-screen w-screen bg-canvas font-sans text-body">
       <Sidebar excalidrawAPI={excalidrawApi} />
-      <div className="relative flex-1" onDragOver={onDragOver} onDrop={onDrop}>
+      <div
+        className="relative flex-1 overflow-hidden"
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
         <Excalidraw
           excalidrawAPI={setExcalidrawApi}
           theme={DEFAULT_THEME}

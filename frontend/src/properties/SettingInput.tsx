@@ -10,7 +10,7 @@ interface SettingInputProps {
 }
 
 const controlClass =
-  'w-full rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 aria-invalid:border-red-500'
+  'h-8 w-full rounded-md border border-border-strong bg-surface px-3 text-label text-ink focus-visible:outline-2 focus-visible:outline-focus-ring aria-invalid:border-danger'
 
 // One labelled input for one catalog setting. The input type comes from the
 // setting, so new settings need no changes here.
@@ -46,7 +46,7 @@ export function SettingInput({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs font-medium text-gray-600">
+      <label htmlFor={id} className="text-label font-semibold text-ink-muted">
         {setting.label}
       </label>
 
@@ -89,7 +89,7 @@ export function SettingInput({
       )}
 
       {error && (
-        <p id={errorId} className="text-xs text-red-600">
+        <p id={errorId} className="text-xs text-danger">
           {error}
         </p>
       )}

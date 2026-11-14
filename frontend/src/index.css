@@ -107,6 +107,8 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 
+  --animate-panel-in: panel-in 150ms ease-out;
+
   --color-blue-light: var(--chalkline-blue-light);
   --color-blue-light-hover: var(--chalkline-blue-light-hover);
   --color-blue-light-active: var(--chalkline-blue-light-active);
@@ -138,6 +140,13 @@
   --color-success: var(--chalkline-color-success);
   --color-warning: var(--chalkline-color-warning);
   --color-danger: var(--chalkline-color-danger);
+}
+
+/* A panel slides in from the right edge when it appears. */
+@keyframes panel-in {
+  from {
+    transform: translateX(100%);
+  }
 }
 
 html,
