@@ -28,8 +28,20 @@ export function readComponent(
   return result.ok ? result.data : null
 }
 
-// Applies a change from the panel. The element is returned as a new object with
-// a bumped version, which is what makes scene sync send it to other clients.
+// Settings are flat (text, number, choice), so a shallow comparison is enough.
+function isSameComponent(a: ComponentData, b: ComponentData): boolean {
+  const aProps: Record<string, unknown> = a.props
+  const bProps: Record<string, unknown> = b.props
+  const keys = Object.keys(aProps)
+  return (
+    a.name === b.name &&
+    keys.length === Object.keys(bProps).length &&
+    keys.every((key) => Object.is(aProps[key], bProps[key]))
+  )
+}
+
+// Applies a change from the panel. A real change returns a new object with a bumped version.
+// A change that leaves the data as it was returns the same element.
 // Invalid changes return problems and leave the element untouched.
 export function updateComponent(
   element: OrderedExcalidrawElement,
@@ -49,6 +61,10 @@ export function updateComponent(
   })
   if (!result.ok) {
     return result
+  }
+
+  if (isSameComponent(current, result.data)) {
+    return { ok: true, element }
   }
 
   return {

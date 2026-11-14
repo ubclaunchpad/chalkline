@@ -1,6 +1,7 @@
 import { newElementWith } from '@excalidraw/excalidraw'
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { changedElements } from '../realtime/sceneSync.ts'
 import {
   readComponent,
   updateComponent,
@@ -107,7 +108,7 @@ describe('updateComponent', () => {
     })
   })
 
-  it('saves through newElementWith so the version is bumped and syncs', () => {
+  it('produces an element that scene sync sends to other clients', () => {
     const element = rectangle(validDatabase)
     const updated = updatedElement(
       updateComponent(element, { props: { replicas: 3 } }),
@@ -120,6 +121,20 @@ describe('updateComponent', () => {
       },
     })
     expect(updated.version).toBe(2)
+    expect(changedElements([element], [updated])).toEqual([updated])
+  })
+
+  it.each([
+    ['an empty change', {}],
+    ['the current name', { name: 'Users DB' }],
+    ['the current setting value', { props: { replicas: 1 } }],
+  ])('returns the same element for %s', (_label, change) => {
+    const element = rectangle(validDatabase)
+    const updated = updatedElement(updateComponent(element, change))
+
+    expect(updated).toBe(element)
+    expect(newElementWith).not.toHaveBeenCalled()
+    expect(changedElements([element], [updated])).toEqual([])
   })
 
   it('does not save an invalid change', () => {
