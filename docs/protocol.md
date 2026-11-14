@@ -62,8 +62,9 @@ forwarded:
 | `board_full` | the change would grow the board past its limit | `board is full` |
 
 `elementId` is set for `conflict`, and for `invalid_element` when the element's
-`id` is a string. `batchId` echoes the change's `batchId`, unless the server
-could not read it (`message_too_large`, malformed JSON, or an invalid `batchId`).
+`id` is a string, cut to its first 64 code points. `batchId` echoes the change's
+`batchId`, unless the server could not read it (`message_too_large`, malformed
+JSON, or an invalid `batchId`).
 The connection stays open after these errors. Oversized messages are read with
 bounded buffering and their remaining bytes discarded before reading the next
 message. WebSocket protocol errors and network failures can still close the

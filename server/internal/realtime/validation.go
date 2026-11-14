@@ -29,6 +29,19 @@ func validID(id string) bool {
 	return utf8.ValidString(id) && id != "" && utf8.RuneCountInString(id) <= 64
 }
 
+// shortID cuts an id to the 64 code points a valid id may have. It counts code
+// points, not bytes, so it never splits a multi-byte character.
+func shortID(id string) string {
+	count := 0
+	for i := range id {
+		if count == 64 {
+			return id[:i]
+		}
+		count++
+	}
+	return id
+}
+
 // prepared is a validated browser message.
 type prepared struct {
 	kind     string
@@ -115,10 +128,11 @@ func parseElement(raw json.RawMessage) (incomingElement, *protocolError) {
 	}
 
 	// A non-string id fails to decode and leaves id empty; null decodes to "".
-	// Either way only a string id is echoed back.
+	// Either way only a string id is echoed back, and only its first 64 code
+	// points, so a huge id doesn't make a huge error message.
 	var id string
 	if json.Unmarshal(fields["id"], &id) != nil || !validID(id) {
-		return incomingElement{}, invalidElement("element id must contain 1 to 64 characters", id)
+		return incomingElement{}, invalidElement("element id must contain 1 to 64 characters", shortID(id))
 	}
 
 	version, versionOK := parseWholeNumber(fields["version"])
