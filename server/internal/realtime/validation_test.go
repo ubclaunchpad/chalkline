@@ -48,6 +48,8 @@ func TestPrepareMessage(t *testing.T) {
 		{"null type", `{"type":null}`, false},
 		{"numeric type", `{"type":1}`, false},
 		{"unsupported type", `{"type":"welcome"}`, false},
+		{"browser leave", `{"type":"leave","clientId":"c_other"}`, false},
+		{"browser participants", `{"type":"participants","clientIds":[]}`, false},
 		{"case sensitive", `{"type":"Change"}`, false},
 		{"trailing JSON", `{"type":"change"}{}`, false},
 		{"invalid UTF-8", "{\"type\":\"change\",\"x\":\"\xff\"}", false},
@@ -107,7 +109,8 @@ func sizedChange(size int) string {
 func TestRejectedMessagesKeepRoomWorking(t *testing.T) {
 	_, url, _ := startServer(t)
 	alice, aliceID := connect(t, url+"a")
-	bob, _ := connect(t, url+"a")
+	bob, bobID := connect(t, url+"a")
+	expectParticipants(t, alice, aliceID, bobID)
 	for _, tt := range []struct {
 		name, body, reason string
 		kind               websocket.MessageType

@@ -62,6 +62,8 @@ func (h *Hub) join(boardID string, client *Client) *Room {
 	room.mu.Lock()
 	defer room.mu.Unlock()
 	room.clients[client.id] = client
+	// A nil sender includes the newcomer, whose welcome is already queued first.
+	room.broadcastLocked(nil, room.participantsLocked())
 	return room // A pointer: every client uses the same Room, including its mutex.
 }
 
@@ -75,7 +77,11 @@ func (h *Hub) leave(boardID string, room *Room, client *Client) {
 	room.broadcastLocked(client, msg)
 	if len(room.clients) == 0 {
 		delete(h.rooms, boardID)
+		return
 	}
+	// Send leave first so existing cursor cleanup runs before the roster replaces
+	// each client's membership list.
+	room.broadcastLocked(nil, room.participantsLocked())
 }
 
 func lifecycleMessage(kind, clientID string) message {
