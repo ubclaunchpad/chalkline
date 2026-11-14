@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { DEFAULT_THEME } from './design/theme'
 import { CollaboratorList } from './presence/CollaboratorList'
 import { loadIdentity, saveIdentity } from './presence/identity'
 import { NameDialog } from './presence/NameDialog'
@@ -28,7 +29,7 @@ function BoardCanvas() {
   )
 
   return (
-    <main className="flex h-screen w-screen">
+    <main className="flex h-screen w-screen bg-canvas font-sans text-body">
       <Sidebar excalidrawAPI={excalidrawApi} />
       <div className="relative flex-1" onDragOver={onDragOver} onDrop={onDrop}>
         <Excalidraw
@@ -43,6 +44,7 @@ function BoardCanvas() {
               />
             )
           }
+          theme={DEFAULT_THEME}
         />
         <ConnectionStatus />
       </div>
