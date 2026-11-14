@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { PropertyPanel } from './properties/PropertyPanel'
+import { useComponentPanel } from './properties/useComponentPanel'
 import { BoardConnectionProvider } from './realtime/BoardConnectionProvider'
 import { ConnectionStatus } from './realtime/ConnectionStatus'
 import { useBoardConnection } from './realtime/useBoardConnection'
@@ -15,6 +17,7 @@ function BoardCanvas() {
     useState<ExcalidrawImperativeAPI | null>(null)
   const handleSceneChange = useSceneSync(connection, excalidrawApi)
   const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
+  const panel = useComponentPanel(excalidrawApi)
 
   return (
     <main className="flex h-screen w-screen">
@@ -22,8 +25,19 @@ function BoardCanvas() {
       <div className="relative flex-1" onDragOver={onDragOver} onDrop={onDrop}>
         <Excalidraw
           excalidrawAPI={setExcalidrawApi}
-          onChange={handleSceneChange}
+          onChange={(elements, appState) => {
+            handleSceneChange(elements)
+            panel.onSceneChange(elements, appState)
+          }}
         />
+        {panel.selection && (
+          <PropertyPanel
+            elementKey={panel.selection.elementKey}
+            data={panel.selection.data}
+            errors={panel.errors}
+            onChange={panel.save}
+          />
+        )}
         <ConnectionStatus />
       </div>
     </main>

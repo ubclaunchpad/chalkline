@@ -42,7 +42,7 @@ export function PropertyPanel({
   return (
     <aside
       aria-label="Component settings"
-      className="absolute top-16 right-3 z-10 flex w-64 flex-col gap-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm"
+      className="absolute top-28 right-4 z-10 flex w-64 flex-col gap-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm"
     >
       <div>
         <h2 className="text-sm font-semibold text-gray-900">{kind.label}</h2>

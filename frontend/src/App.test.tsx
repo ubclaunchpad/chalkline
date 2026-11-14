@@ -9,7 +9,10 @@ import { SCENE_SEND_INTERVAL_MS } from './realtime/useSceneSync'
 
 interface MockExcalidrawProps {
   excalidrawAPI?: (api: ExcalidrawImperativeAPI) => void
-  onChange?: (elements: readonly OrderedExcalidrawElement[]) => void
+  onChange?: (
+    elements: readonly OrderedExcalidrawElement[],
+    appState: { selectedElementIds: Readonly<Record<string, true>> },
+  ) => void
 }
 
 const mockExcalidraw = vi.hoisted(() => {
@@ -125,7 +128,7 @@ describe('App scene synchronization', () => {
 
     act(() => {
       socket().serverOpens()
-      mockExcalidraw.props?.onChange?.([local])
+      mockExcalidraw.props?.onChange?.([local], { selectedElementIds: {} })
       vi.advanceTimersByTime(SCENE_SEND_INTERVAL_MS)
     })
 
