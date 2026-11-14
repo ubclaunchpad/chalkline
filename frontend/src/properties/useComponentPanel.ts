@@ -70,6 +70,13 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
         // Returning prev unchanged tells React to skip the re-render.
         return prev?.elementKey === elementKey ? prev : { ...next, elementKey }
       })
+
+      // Errors belong to the element they were made on. Once something else is
+      // selected (or nothing), drop them, so coming back later starts clean.
+      // A new version of the same element keeps them.
+      setPanelErrors((prev: PanelErrors | null) =>
+        prev && prev.elementId !== next?.element.id ? null : prev,
+      )
     },
     [],
   )
