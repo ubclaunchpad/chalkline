@@ -1,12 +1,17 @@
-import { newElementWith } from '@excalidraw/excalidraw'
+import {
+  convertToExcalidrawElements,
+  newElementWith,
+} from '@excalidraw/excalidraw'
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentData } from '../catalog/catalog.ts'
 import { changedElements } from '../realtime/sceneSync.ts'
 import { relabelComponent } from './componentLabel.ts'
 
-// The real package needs a browser canvas to load, so stand in for
-// newElementWith: copy the element, apply the updates, bump the version.
+// The real package needs a browser canvas to load, so stand in for it.
+// newElementWith copies the element, applies the updates and bumps the
+// version. convertToExcalidrawElements returns whatever each test sets, which
+// plays the part of Excalidraw's measured copy of the box and label.
 vi.mock('@excalidraw/excalidraw', () => ({
   newElementWith: vi.fn(
     (element: OrderedExcalidrawElement, updates: object) => ({
@@ -15,10 +20,12 @@ vi.mock('@excalidraw/excalidraw', () => ({
       version: element.version + 1,
     }),
   ),
+  convertToExcalidrawElements: vi.fn(),
 }))
 
 beforeEach(() => {
   vi.mocked(newElementWith).mockClear()
+  vi.mocked(convertToExcalidrawElements).mockReset()
 })
 
 type RectangleElement = Extract<OrderedExcalidrawElement, { type: 'rectangle' }>
@@ -76,7 +83,7 @@ const label = (text: string, isDeleted = false): TextElement => ({
   isDeleted,
   boundElements: null,
   fontSize: 20,
-  fontFamily: 5 as TextElement['fontFamily'],
+  fontFamily: 5,
   text,
   originalText: text,
   textAlign: 'center',
@@ -86,8 +93,31 @@ const label = (text: string, isDeleted = false): TextElement => ({
   lineHeight: 1.25 as TextElement['lineHeight'],
 })
 
+// Makes the fake Excalidraw "measure" the new label: wrapped text, a size and
+// a position, plus the box height Excalidraw would need to fit it.
+function measuresAs({
+  text,
+  boxHeight = base.height,
+}: {
+  text: string
+  boxHeight?: number
+}) {
+  vi.mocked(convertToExcalidrawElements).mockReturnValue([
+    { ...box(undefined), id: 'throwaway-box', height: boxHeight },
+    {
+      ...label(text),
+      id: 'throwaway-label',
+      x: 15,
+      y: 25,
+      width: 150,
+      height: 50,
+    },
+  ])
+}
+
 describe('relabelComponent', () => {
-  it('updates the label text to the new name', () => {
+  it('gives the real label the measured text, size and position', () => {
+    measuresAs({ text: 'Orders DB\ndatabase' })
     const container = box(database)
     const oldLabel = label('Users DB\ndatabase')
 
@@ -96,15 +126,81 @@ describe('relabelComponent', () => {
       throw new Error('expected an updated label')
     }
 
-    expect(result).toMatchObject({
+    expect(result.label).toMatchObject({
       id: 'label',
       text: 'Orders DB\ndatabase',
       originalText: 'Orders DB\ndatabase',
+      x: 15,
+      y: 25,
+      width: 150,
+      height: 50,
       version: 2,
     })
     // Check against sync's own rule, so this fails if the new label would not
     // be sent to other clients.
-    expect(changedElements([oldLabel], [result])).toEqual([result])
+    expect(changedElements([oldLabel], [result.label])).toEqual([result.label])
+  })
+
+  it('measures with the same box size and font as the real label', () => {
+    measuresAs({ text: 'Orders DB\ndatabase' })
+    const container = box(database)
+
+    relabelComponent(container, [container, label('Users DB\ndatabase')])
+
+    // The skeletons the throwaway copy was built from.
+    const skeletons = vi.mocked(convertToExcalidrawElements).mock.calls[0][0]
+
+    expect(skeletons).toMatchObject([
+      {
+        type: 'rectangle',
+        x: 0,
+        y: 0,
+        width: 180,
+        height: 100,
+        label: { text: 'Orders DB\ndatabase', fontSize: 20, fontFamily: 5 },
+      },
+    ])
+  })
+
+  it('keeps wrapped text but remembers what was written', () => {
+    measuresAs({ text: 'A very long\nname\ndatabase' })
+    const container = box({ ...database, name: 'A very long name' })
+
+    const result = relabelComponent(container, [container, label('Old')])
+
+    expect(result?.label).toMatchObject({
+      text: 'A very long\nname\ndatabase',
+      originalText: 'A very long name\ndatabase',
+    })
+  })
+
+  it('leaves the box alone when the text fits', () => {
+    measuresAs({ text: 'Orders DB\ndatabase' })
+    const container = box(database)
+
+    const result = relabelComponent(container, [container, label('Old')])
+
+    expect(result?.container).toBe(container)
+  })
+
+  it('grows the box when the text needs more room', () => {
+    measuresAs({ text: 'A very long\nname\ndatabase', boxHeight: 140 })
+    const container = box({ ...database, name: 'A very long name' })
+
+    const result = relabelComponent(container, [container, label('Old')])
+    if (!result) {
+      throw new Error('expected an updated label')
+    }
+
+    expect(result.container).toMatchObject({
+      id: 'box',
+      width: 180,
+      height: 140,
+      version: 2,
+    })
+    expect(changedElements([container], [result.container])).toEqual([
+      result.container,
+    ])
   })
 
   it('returns null when the label already shows the name', () => {
@@ -112,6 +208,7 @@ describe('relabelComponent', () => {
     const current = label('Orders DB\ndatabase')
 
     expect(relabelComponent(container, [container, current])).toBeNull()
+    expect(convertToExcalidrawElements).not.toHaveBeenCalled()
     expect(newElementWith).not.toHaveBeenCalled()
   })
 
