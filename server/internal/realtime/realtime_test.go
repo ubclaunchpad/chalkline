@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,6 +35,14 @@ func startServer(t *testing.T) (*Hub, string, context.CancelFunc) {
 
 func connect(t *testing.T, url string) (*websocket.Conn, string) {
 	t.Helper()
+	conn, id, _ := joinBoard(t, url)
+	return conn, id
+}
+
+// joinBoard connects and checks the join sequence: welcome, then exactly one
+// snapshot. It returns the snapshot's elements.
+func joinBoard(t *testing.T, url string) (*websocket.Conn, string, []json.RawMessage) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	conn, _, err := websocket.Dial(ctx, url, nil)
@@ -41,6 +50,9 @@ func connect(t *testing.T, url string) (*websocket.Conn, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.CloseNow() })
+	// The library's default read limit is 32 KiB. Snapshots can reach 1 MiB,
+	// and a forwarded change can be slightly larger once "from" is added.
+	conn.SetReadLimit(2 << 20)
 	msg := receive(t, conn)
 	var welcome struct {
 		Type     string `json:"type"`
@@ -52,7 +64,15 @@ func connect(t *testing.T, url string) (*websocket.Conn, string) {
 	if msg.kind != websocket.MessageText || welcome.Type != "welcome" || welcome.ClientID == "" {
 		t.Fatalf("first message is not a welcome: %s", msg.data)
 	}
-	return conn, welcome.ClientID
+	msg = receive(t, conn)
+	var snapshot struct {
+		Type     string            `json:"type"`
+		Elements []json.RawMessage `json:"elements"`
+	}
+	if err := json.Unmarshal(msg.data, &snapshot); err != nil || snapshot.Type != "snapshot" || snapshot.Elements == nil {
+		t.Fatalf("second message is not a snapshot: %s", msg.data)
+	}
+	return conn, welcome.ClientID, snapshot.Elements
 }
 
 func receive(t *testing.T, conn *websocket.Conn) message {
@@ -75,26 +95,46 @@ func send(t *testing.T, conn *websocket.Conn, msg message) {
 	}
 }
 
+var nextElement atomic.Int64
+
+// changeMessage sends a brand-new element carrying marker. A new element ID
+// always wins, so the room forwards it, even when the same marker is reused.
 func changeMessage(marker string) message {
-	data, _ := json.Marshal(map[string]any{"type": "change", "elements": []any{}, "marker": marker})
+	return elementChange(fmt.Sprintf("e%d", nextElement.Add(1)), 1, 1, false, marker, "")
+}
+
+// elementChange sends one element. marker sits inside the element, so it is
+// part of the element's content.
+func elementChange(id string, version, nonce int64, deleted bool, marker, batchID string) message {
+	change := map[string]any{"type": "change", "elements": []any{map[string]any{
+		"id": id, "version": version, "versionNonce": nonce, "isDeleted": deleted, "marker": marker,
+	}}}
+	if batchID != "" {
+		change["batchId"] = batchID
+	}
+	data, _ := json.Marshal(change)
 	return message{kind: websocket.MessageText, data: data}
 }
 
+// receiveChange returns the marker of the first element in the next message,
+// which must be an attributed change.
 func receiveChange(t *testing.T, conn *websocket.Conn) (string, string) {
 	t.Helper()
 	msg := receive(t, conn)
 	var change struct {
-		Type   string `json:"type"`
-		From   string `json:"from"`
-		Marker string `json:"marker"`
+		Type     string `json:"type"`
+		From     string `json:"from"`
+		Elements []struct {
+			Marker string `json:"marker"`
+		} `json:"elements"`
 	}
 	if err := json.Unmarshal(msg.data, &change); err != nil {
 		t.Fatal(err)
 	}
-	if msg.kind != websocket.MessageText || change.Type != "change" || change.From == "" {
+	if msg.kind != websocket.MessageText || change.Type != "change" || change.From == "" || len(change.Elements) == 0 {
 		t.Fatalf("expected attributed change, got %s", msg.data)
 	}
-	return change.Marker, change.From
+	return change.Elements[0].Marker, change.From
 }
 
 func waitForEmptyHub(t *testing.T, hub *Hub) {
@@ -232,12 +272,15 @@ func TestFullQueueCancelsOnlySlowClient(t *testing.T) {
 	hub.join("a", healthy)
 	hub.join("a", sender)
 	msg := message{kind: websocket.MessageText, data: []byte("hello")}
-	for range outgoingCapacity {
+	for range outgoingCapacity - 1 { // join already queued a snapshot.
 		slow.enqueue(msg)
 	}
 	room.broadcast(sender, msg)
 	if slowCtx.Err() == nil || healthyCtx.Err() != nil || senderCtx.Err() != nil {
 		t.Fatal("only the slow client should be cancelled")
+	}
+	if snapshot := <-healthy.outgoing; !strings.HasPrefix(string(snapshot.data), snapshotPrefix) {
+		t.Fatalf("expected the join snapshot first, got %q", snapshot.data)
 	}
 	select {
 	case got := <-healthy.outgoing:
@@ -247,7 +290,7 @@ func TestFullQueueCancelsOnlySlowClient(t *testing.T) {
 	default:
 		t.Fatal("healthy client did not receive the broadcast")
 	}
-	if len(sender.outgoing) != 0 {
+	if len(sender.outgoing) != 1 { // Only its own join snapshot.
 		t.Fatal("sender received its own broadcast")
 	}
 }

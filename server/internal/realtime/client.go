@@ -66,7 +66,7 @@ func (c *Client) readLoop(ctx context.Context, room *Room) {
 			return
 		}
 		if len(data) > maxMessageBytes {
-			c.enqueue(errorMessage("message too large"))
+			c.enqueue(errorMessage(&protocolError{code: codeMessageTooLarge, message: "message too large"}, ""))
 			// Consume the rest before reading the next message. Discarding streams
 			// the bytes without retaining them; cancellation still stops this read.
 			if _, err := io.Copy(io.Discard, reader); err != nil {
@@ -75,15 +75,19 @@ func (c *Client) readLoop(ctx context.Context, room *Room) {
 			continue
 		}
 		if kind != websocket.MessageText {
-			c.enqueue(errorMessage("message must be text JSON"))
+			c.enqueue(errorMessage(invalidMessage("message must be text JSON"), ""))
 			continue
 		}
-		msg, err := prepareMessage(data, c.id)
-		if err != nil {
-			c.enqueue(errorMessage(err.Error()))
+		p, perr := prepareMessage(data, c.id)
+		if perr != nil {
+			c.enqueue(errorMessage(perr, p.batchID))
 			continue
 		}
-		room.broadcast(c, msg)
+		if p.kind == "cursor" {
+			room.broadcast(c, p.encoded)
+			continue
+		}
+		room.applyChange(c, p)
 	}
 }
 
