@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { DEFAULT_THEME } from './design/theme'
 import { PropertyPanel } from './properties/PropertyPanel'
 import { useComponentPanel } from './properties/useComponentPanel'
 import { BoardConnectionProvider } from './realtime/BoardConnectionProvider'
@@ -20,11 +21,12 @@ function BoardCanvas() {
   const panel = useComponentPanel(excalidrawApi)
 
   return (
-    <main className="flex h-screen w-screen">
+    <main className="flex h-screen w-screen bg-canvas font-sans text-body">
       <Sidebar excalidrawAPI={excalidrawApi} />
       <div className="relative flex-1" onDragOver={onDragOver} onDrop={onDrop}>
         <Excalidraw
           excalidrawAPI={setExcalidrawApi}
+          theme={DEFAULT_THEME}
           onChange={(elements, appState) => {
             handleSceneChange(elements)
             panel.onSceneChange(elements, appState)

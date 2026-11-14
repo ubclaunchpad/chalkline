@@ -13,6 +13,7 @@ interface MockExcalidrawProps {
     elements: readonly OrderedExcalidrawElement[],
     appState: { selectedElementIds: Readonly<Record<string, true>> },
   ) => void
+  theme?: 'dark' | 'light'
 }
 
 const mockExcalidraw = vi.hoisted(() => {
@@ -119,6 +120,17 @@ afterEach(() => {
 })
 
 describe('App scene synchronization', () => {
+  it('loads Excalidraw in Chalkline dark mode', () => {
+    render(<App />)
+
+    expect(mockExcalidraw.props?.theme).toBe('dark')
+    expect(
+      document
+        .getElementById('component-sidebar-list')
+        ?.classList.contains('text-gray-900'),
+    ).toBe(true)
+  })
+
   it('sends local changes through the one shared board connection', () => {
     render(<App />)
     expect(FakeWebSocket.instances).toHaveLength(1)
