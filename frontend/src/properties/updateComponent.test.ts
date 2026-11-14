@@ -122,6 +122,18 @@ describe('updateComponent', () => {
     expect(updated.version).toBe(2)
   })
 
+  it.each([
+    ['an empty change', {}],
+    ['the current name', { name: 'Users DB' }],
+    ['the current setting value', { props: { replicas: 1 } }],
+  ])('returns the same element for %s', (_label, change) => {
+    const element = rectangle(validDatabase)
+    const updated = updatedElement(updateComponent(element, change))
+
+    expect(updated).toBe(element)
+    expect(newElementWith).not.toHaveBeenCalled()
+  })
+
   it('does not save an invalid change', () => {
     updateComponent(rectangle(validDatabase), { props: { replicas: 0 } })
 
