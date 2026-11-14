@@ -1,0 +1,16 @@
+--- a/dist/dev/index.js
++++ b/dist/dev/index.js
+@@ -33142,0 +33143,5 @@
++
++// Chalkline: honor the public Collaborator.color field (Excalidraw 0.18.1).
++var chalklineOriginalClientColor = getClientColor;
++getClientColor = (socketId, collaborator) =>
++  collaborator?.color?.background ?? chalklineOriginalClientColor(socketId, collaborator);
+--- a/dist/prod/index.js
++++ b/dist/prod/index.js
+@@ -108,0 +109,5 @@
++
++// Chalkline: honor the public Collaborator.color field (Excalidraw 0.18.1).
++var chalklineOriginalClientColor = Tn;
++Tn = (socketId, collaborator) =>
++  collaborator?.color?.background ?? chalklineOriginalClientColor(socketId, collaborator);
