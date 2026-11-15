@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useEffect, useEffectEvent, useState, type KeyboardEvent } from 'react'
 import type { SettingDefinition } from '../catalog/catalog.ts'
 
 interface SettingInputProps {
@@ -7,6 +7,9 @@ interface SettingInputProps {
   value: string | number
   error?: string
   onCommit: (value: string | number) => void
+  // When set, a text or number box also commits once the user stops typing
+  // for this long, instead of only on blur or Enter.
+  commitDelayMs?: number
 }
 
 const controlClass =
@@ -20,11 +23,21 @@ export function SettingInput({
   value,
   error,
   onCommit,
+  commitDelayMs,
 }: SettingInputProps) {
   // What the user is typing, kept separate from the saved value so that a
   // half-typed number (such as an empty box) is not saved.
   const [draft, setDraft] = useState<string>(String(value))
   const errorId = `${id}-error`
+
+  // When the saved value changes while this input stays on screen (such as
+  // someone else renaming the component), show the new value. Our own saves
+  // come back equal to the draft, so they change nothing visible.
+  const [savedValue, setSavedValue] = useState<string | number>(value)
+  if (value !== savedValue) {
+    setSavedValue(value)
+    setDraft(String(value))
+  }
 
   // Only send real changes: committing an unchanged value would still bump
   // the element's version and sync an edit that changed nothing.
@@ -34,6 +47,26 @@ export function SettingInput({
     }
     onCommit(setting.type === 'number' ? Number(draft) : draft)
   }
+
+  // An effect event always sees the latest draft and onCommit without making
+  // the timer restart when they change. onCommit is a new function on every
+  // render, so depending on it would restart the timer after each failed save
+  // and retry forever.
+  const commitAfterPause = useEffectEvent(commitDraft)
+
+  useEffect(() => {
+    if (commitDelayMs === undefined) {
+      return
+    }
+    const timer = setTimeout(() => {
+      commitAfterPause()
+    }, commitDelayMs)
+    // Typing again before the delay ends cancels this timer and starts a new
+    // one, so only the pause after the last keystroke commits.
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [draft, commitDelayMs])
 
   const commitOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {

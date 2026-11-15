@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentData } from '../catalog/catalog.ts'
-import { PropertyPanel } from './PropertyPanel.tsx'
+import { NAME_COMMIT_DELAY_MS, PropertyPanel } from './PropertyPanel.tsx'
 
 // PropertyPanel only imports a type from updateComponent.ts, which is removed
 // when compiling, so Excalidraw is never loaded and needs no mock here.
@@ -34,6 +34,7 @@ describe('PropertyPanel', () => {
   it("shows a database's kind, name and settings with current values", () => {
     render(
       <PropertyPanel
+        elementId="db"
         elementKey="db-1"
         data={database}
         errors={{}}
@@ -53,6 +54,7 @@ describe('PropertyPanel', () => {
   it("builds the inputs from the kind's catalog settings", () => {
     render(
       <PropertyPanel
+        elementId="cache"
         elementKey="cache-1"
         data={cache}
         errors={{}}
@@ -71,6 +73,7 @@ describe('PropertyPanel', () => {
     const onChange = vi.fn()
     render(
       <PropertyPanel
+        elementId="db"
         elementKey="db-1"
         data={database}
         errors={{}}
@@ -89,6 +92,7 @@ describe('PropertyPanel', () => {
     const onChange = vi.fn()
     render(
       <PropertyPanel
+        elementId="db"
         elementKey="db-1"
         data={database}
         errors={{}}
@@ -103,9 +107,50 @@ describe('PropertyPanel', () => {
     expect(onChange).toHaveBeenCalledWith({ name: 'Orders DB' })
   })
 
+  it('reports a rename after a pause in typing, keeping focus on the name', () => {
+    vi.useFakeTimers()
+    try {
+      const onChange = vi.fn()
+      const { rerender } = render(
+        <PropertyPanel
+          elementId="db"
+          elementKey="db-1"
+          data={database}
+          errors={{}}
+          onChange={onChange}
+        />,
+      )
+
+      const name = screen.getByLabelText('Name')
+      name.focus()
+      fireEvent.change(name, { target: { value: 'Orders DB' } })
+      vi.advanceTimersByTime(NAME_COMMIT_DELAY_MS)
+
+      expect(onChange).toHaveBeenCalledWith({ name: 'Orders DB' })
+
+      // The save comes back as a new version of the same element. The name
+      // box must survive it, or the user would lose their place mid-word.
+      rerender(
+        <PropertyPanel
+          elementId="db"
+          elementKey="db-2"
+          data={{ ...database, name: 'Orders DB' }}
+          errors={{}}
+          onChange={onChange}
+        />,
+      )
+
+      expect(screen.getByLabelText('Name')).toBe(name)
+      expect(document.activeElement).toBe(name)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows each error next to its input', () => {
     render(
       <PropertyPanel
+        elementId="db"
         elementKey="db-1"
         data={database}
         errors={{ replicas: 'replicas must be at least 1' }}

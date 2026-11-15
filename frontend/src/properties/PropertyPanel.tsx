@@ -7,7 +7,12 @@ import {
 import { SettingInput } from './SettingInput.tsx'
 import type { ComponentChange } from './updateComponent.ts'
 
+// How long the name waits after the last keystroke before saving.
+export const NAME_COMMIT_DELAY_MS = 300
+
 interface PropertyPanelProps {
+  // Changes only when a different element is selected.
+  elementId: string
   // Changes whenever a different element is selected or the element is edited
   // (including by someone else), so inputs restart with the saved values.
   elementKey: string
@@ -28,6 +33,7 @@ const nameSetting: SettingDefinition = {
 // Shows one component's name and settings. It only reports changes; saving
 // them to the board is the caller's job.
 export function PropertyPanel({
+  elementId,
   elementKey,
   data,
   errors,
@@ -49,12 +55,17 @@ export function PropertyPanel({
         <p className="text-xs text-ink-muted">{kind.description}</p>
       </div>
 
+      {/* The name saves while the user is still typing, and each save makes a
+          new element version. Keying by version would rebuild the input and
+          drop focus mid-word, so it is keyed by element only and follows
+          outside renames through its value instead. */}
       <SettingInput
-        key={`${elementKey}-name`}
+        key={`${elementId}-name`}
         id="component-name"
         setting={nameSetting}
         value={data.name}
         error={errors.name}
+        commitDelayMs={NAME_COMMIT_DELAY_MS}
         onCommit={(value: string | number) => {
           onChange({ name: String(value) })
         }}
