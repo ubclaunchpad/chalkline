@@ -34,9 +34,15 @@ Elements are processed in ID order, so the same scene gives the same graph regar
 
 ## Collaboration and persistence
 
-The planned Go WebSocket service validates incoming messages and passes each board's changes to the other people on that board. When two people change the same element at once, the copy with the higher Excalidraw `version` wins, with the lower `versionNonce` breaking ties. Every browser applies this rule, and so will the server once it keeps its own copy of a board, so all copies converge regardless of message order. See the [live editing protocol](protocol.md). Presence and cursors are ephemeral. One process initially holds a map of rooms in memory, with a mutex for each room. HTTP/API paths remain stateless, and room memory is coordination state rather than durable storage. PostgreSQL stores periodic snapshots and an operation log between them so boards can be restored after a restart.
+The Go WebSocket service validates incoming messages. Each room keeps an in-memory copy of its board: the winning copy of every element, with deleted elements kept as tombstones. When two people change the same element at once, the copy with the higher Excalidraw `version` wins, with the lower `versionNonce` breaking ties. Every browser and the server apply this rule, so all copies converge regardless of message order. The server forwards only winning elements, and sends the sender its own copy of anything the sender lost. A joining client receives a **join snapshot** of the room's board right after `welcome`. This is a different thing from the periodic PostgreSQL snapshots below. See the [live editing protocol](protocol.md). Presence and cursors are ephemeral. One process holds a map of rooms in memory, with a mutex for each room. HTTP/API paths remain stateless, and room memory is coordination state rather than durable storage: a room and its board are deleted when the last client leaves. PostgreSQL stores periodic snapshots and an operation log between them so boards can be restored after a restart.
 
-Local recovery after a disconnect, joining an active board, and reconciling local edits with remote updates are part of the editor design. Sharing must support view and edit access. Accounts are deferred for the initial experience.
+Ownership of board state is split three ways:
+
+- **The server** owns the board of each active room and the join snapshot (#47).
+- **Each browser** owns its unsent local edits, and decides how to apply the join snapshot when it joins or reconnects (#51).
+- **Durability** belongs to #48.
+
+Sharing must support view and edit access. Accounts are deferred for the initial experience.
 
 ## Decisions still open
 
