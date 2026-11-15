@@ -5,6 +5,7 @@ import "sync"
 type Room struct {
 	mu      sync.Mutex
 	clients map[string]*Client // client ID → connected client
+	scene   *scene             // The room's copy of its board, guarded by mu.
 }
 
 func (r *Room) broadcast(sender *Client, msg message) {
@@ -21,5 +22,30 @@ func (r *Room) broadcastLocked(sender *Client, msg message) {
 		if client != sender {
 			client.enqueue(msg)
 		}
+	}
+}
+
+// applyChange merges a change into the room's board. Winners go to everyone
+// else, and the sender gets the stored copy of anything it lost. Holding mu
+// for the whole step keeps the board and the order of queued messages in
+// step, so a snapshot taken in join never misses or repeats a change.
+func (r *Room) applyChange(sender *Client, p prepared) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	winners, corrections, perr := r.scene.apply(p.elements)
+	if perr != nil {
+		sender.enqueue(errorMessage(perr, p.batchID))
+		return
+	}
+	if len(winners) > 0 {
+		// Every field was decoded from valid JSON, so encoding cannot fail.
+		if msg, err := forwardedChange(p.fields, winners); err == nil {
+			r.broadcastLocked(sender, msg)
+		} else {
+			sender.enqueue(errorMessage(invalidMessage("message must be a JSON object"), p.batchID))
+		}
+	}
+	if len(corrections) > 0 {
+		sender.enqueue(correctionMessage(corrections))
 	}
 }

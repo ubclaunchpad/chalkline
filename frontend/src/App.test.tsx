@@ -19,8 +19,8 @@ interface MockExcalidrawProps {
 const mockExcalidraw = vi.hoisted(() => {
   let scene: readonly OrderedExcalidrawElement[] = []
   const updateScene = vi.fn(
-    ({ elements }: { elements: readonly OrderedExcalidrawElement[] }) => {
-      scene = elements
+    ({ elements }: { elements?: readonly OrderedExcalidrawElement[] }) => {
+      if (elements) scene = elements
     },
   )
 
@@ -108,6 +108,7 @@ function socket(): FakeWebSocket {
 beforeEach(() => {
   FakeWebSocket.instances = []
   mockExcalidraw.reset()
+  localStorage.setItem('chalkline.displayName', 'Test user')
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', FakeWebSocket)
   window.history.replaceState(null, '', '/?board=team')
@@ -115,6 +116,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
