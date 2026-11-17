@@ -13,7 +13,8 @@ points; otherwise it returns HTTP 400. IDs are used exactly as supplied, without
 trimming or normalization. Default WebSocket origin checks remain enabled.
 
 The server sends `{"type":"welcome","clientId":"c_..."}` first, then exactly
-one `snapshot` of the room's board (see [Joining a board](#joining-a-board)).
+one `snapshot` of the room's board (see [Joining a board](#joining-a-board)),
+then the room's `participants` roster (see [Who is in the room](#who-is-in-the-room)).
 Each room keeps its own copy of the board in memory and judges every change
 against it (see [Sending changes](#sending-changes)). Accepted messages go to
 everyone else in the room with a trusted `from` field. The only message sent
@@ -21,6 +22,60 @@ back to the sender about its own change is a correction or an error. On
 disconnect the server sends `{"type":"leave","clientId":"c_..."}` to the
 remaining clients. It deletes an empty room together with its board.
 Reconnecting creates a new client ID and receives a fresh snapshot.
+
+### Who is in the room
+
+After every join and departure, the server sends the room's complete roster to
+every client still in it:
+
+```json
+{ "type": "participants", "clientIds": ["c_alice", "c_bob"] }
+```
+
+The roster includes the recipient. Treat `clientIds` as a set: the order has no
+meaning, and each connected client appears exactly once. Each entry is one
+connection (one tab), not one person; a user with two tabs open appears twice.
+Clients should replace their whole membership list with each roster rather
+than adding or removing entries themselves. The browser parser ignores a roster
+that is empty or repeats an ID, keeping the previous list until a valid one
+arrives.
+
+A newcomer receives `welcome`, then its `snapshot`, then the roster that
+includes it, all queued under the room lock in that order. Clients already in
+the room receive only the new roster, never another snapshot. When
+someone disconnects, the remaining clients receive one `leave` for that client
+and a roster without it. A
+reconnect gets a new client ID, a fresh snapshot and a fresh roster; the old ID does not appear
+again. No roster is sent when the last client leaves, because the room is
+deleted. A cursor that stops updating does not mean its client left; only
+`leave` and `participants` change membership.
+
+The server builds each roster from its own room membership under the room lock,
+in the same step as the join or departure. Only the newest roster matters, so
+each client has at most one roster waiting in its outgoing queue: a newer
+roster replaces the waiting one instead of being queued behind it. Without
+this, a burst of departures queued a `leave` and a roster per departure and
+could overflow healthy clients' 64-message queues, disconnecting them.
+
+This means a roster can arrive earlier than the change that produced it. If
+Alice and Bob leave quickly, Carol may receive `leave` Alice, then a roster
+already without Alice and Bob, then `leave` Bob. A client can likewise receive
+a message from a client after a roster that no longer lists it, but never
+after its `leave`. What still holds:
+
+- `welcome` is first, and the newcomer's own roster includes it.
+- Every remaining client receives exactly one `leave` per departure.
+- The last roster each client receives matches the room.
+
+`leave` messages are still one per departure, so roughly 60 departures before
+a client's writer catches up can still overflow its queue. Removing `leave`
+in favour of roster diffs would fix that and is a separate protocol change. Rosters are temporary room state; they are not
+stored in PostgreSQL or in the board document.
+
+Sending the full roster costs more than separate join and remove events: each
+change sends N IDs to N clients. In return, a client never has to rebuild
+membership from a history of events, and any single roster is enough to
+correct it.
 
 Browser messages are UTF-8 JSON objects sent as WebSocket text messages:
 
@@ -30,7 +85,9 @@ Browser messages are UTF-8 JSON objects sent as WebSocket text messages:
 ```
 
 The envelope must be a JSON object whose exact `type` is `change` or `cursor`.
-Unknown top-level fields are preserved. Every forwarded message has
+Browsers cannot send `welcome`, `snapshot`, `leave`, or `participants`; those
+get an `invalid_message` error and never change room membership. Unknown
+top-level fields are preserved. Every forwarded message has
 `"from":"c_..."` set from the connection, replacing any browser-supplied value.
 This is a connection identity, not authentication or board access control.
 
@@ -83,6 +140,7 @@ the room's snapshot; how the browser catches up is #51.
 ```json
 {"type":"welcome","clientId":"c_..."}
 {"type":"snapshot","elements":[ ... ]}
+{"type":"participants","clientIds":["c_..."]}
 ```
 
 The snapshot holds every element the room has accepted, deleted elements
@@ -158,13 +216,50 @@ Scenario: Participants exchange messages within a board
   And no sender receives its own message
   And Dan receives no messages from board a
 
+Scenario: A participant joins
+  Given Alice is on board a and has not moved her cursor
+  When Bob joins board a
+  Then Bob receives welcome, then the board's snapshot, then a roster containing Alice and Bob
+  And Alice receives a roster containing Alice and Bob and no snapshot
+
+Scenario: Membership changes stay within their board
+  Given Alice is on board a and Dan and Erin are on board b
+  When Bob joins and then leaves board a
+  Then Alice receives Bob's roster, leave, and updated roster
+  And Dan and Erin receive none of board a's lifecycle messages
+
+Scenario: Concurrent joins and departures settle
+  Given Alice is on board a
+  When twelve clients join at once and half of them leave immediately
+  Then every remaining client's last roster matches the server's room
+  And each connected client appears in it exactly once
+
+Scenario: A slow client is removed from the roster
+  Given a slow client's outgoing queue is full
+  When a broadcast cancels it and its connection is cleaned up
+  Then the remaining clients receive a leave for it and a roster without it
+
+Scenario: Many participants leave at once
+  Given 50 participants are on board a
+  When 40 of them leave before the others' writers catch up
+  Then none of the remaining 10 is disconnected
+  And each receives one leave per departure and a final roster of the 10
+
+Scenario: A browser cannot send lifecycle messages
+  Given Alice and Bob are on the same board
+  When Alice sends participants, welcome, snapshot, or leave
+  Then Alice receives an error
+  And Bob receives no roster or leave, and the room's membership is unchanged
+
 Scenario: A participant disconnects
   Given Alice and Bob are on the same board
   When Alice disconnects
   Then Bob receives one leave message identifying Alice
+  And Bob then receives a roster containing only Bob
   And Bob can keep exchanging messages with another participant
   When all participants disconnect
   Then the room is removed
+  And a new connection receives a new client ID, a snapshot, and a roster including it
 
 Scenario: An invalid message does not interrupt collaboration
   Given Alice and Bob are on the same board

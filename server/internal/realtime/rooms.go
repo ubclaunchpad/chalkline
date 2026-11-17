@@ -1,6 +1,9 @@
 package realtime
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 type Room struct {
 	mu      sync.Mutex
@@ -23,6 +26,28 @@ func (r *Room) broadcastLocked(sender *Client, msg message) {
 			client.enqueue(msg)
 		}
 	}
+}
+
+// broadcastRosterLocked requires r.mu. Each client keeps at most one roster
+// waiting, so a burst of joins or departures cannot fill healthy queues.
+func (r *Room) broadcastRosterLocked() {
+	msg := r.participantsLocked()
+	for _, client := range r.clients {
+		client.enqueueRoster(msg)
+	}
+}
+
+// participantsLocked requires r.mu. Capturing the roster under the same lock
+// that queues it means every client receives rosters in membership order, so
+// the last one each client gets matches the room.
+func (r *Room) participantsLocked() message {
+	ids := make([]string, 0, len(r.clients))
+	for id := range r.clients {
+		ids = append(ids, id)
+	}
+	// Clients treat the list as a set; sorting only makes the bytes predictable.
+	slices.Sort(ids)
+	return participantsMessage(ids)
 }
 
 // applyChange merges a change into the room's board. Winners go to everyone

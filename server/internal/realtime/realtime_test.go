@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -39,40 +41,148 @@ func connect(t *testing.T, url string) (*websocket.Conn, string) {
 	return conn, id
 }
 
-// joinBoard connects and checks the join sequence: welcome, then exactly one
-// snapshot. It returns the snapshot's elements.
+// joinBoard connects and checks the join sequence: welcome, exactly one
+// snapshot, then a roster that includes the newcomer. It returns the
+// snapshot's elements.
 func joinBoard(t *testing.T, url string) (*websocket.Conn, string, []json.RawMessage) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, url, nil)
+	conn, id, snapshot, _, err := dial(ctx, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.CloseNow() })
+	return conn, id, snapshot
+}
+
+// dial joins a board and reads its welcome, snapshot and first roster. It
+// returns errors instead of failing the test, so goroutines other than the
+// test's can use it.
+func dial(ctx context.Context, url string) (*websocket.Conn, string, []json.RawMessage, []string, error) {
+	conn, _, err := websocket.Dial(ctx, url, nil)
+	if err != nil {
+		return nil, "", nil, nil, err
+	}
 	// The library's default read limit is 32 KiB. Snapshots can reach 1 MiB,
 	// and a forwarded change can be slightly larger once "from" is added.
 	conn.SetReadLimit(2 << 20)
-	msg := receive(t, conn)
+	id, snapshot, roster, err := readJoin(ctx, conn)
+	if err != nil {
+		_ = conn.CloseNow()
+		return nil, "", nil, nil, err
+	}
+	return conn, id, snapshot, roster, nil
+}
+
+func readJoin(ctx context.Context, conn *websocket.Conn) (string, []json.RawMessage, []string, error) {
+	kind, data, err := conn.Read(ctx)
+	if err != nil {
+		return "", nil, nil, err
+	}
 	var welcome struct {
 		Type     string `json:"type"`
 		ClientID string `json:"clientId"`
 	}
-	if err := json.Unmarshal(msg.data, &welcome); err != nil {
-		t.Fatal(err)
+	if kind != websocket.MessageText || json.Unmarshal(data, &welcome) != nil ||
+		welcome.Type != "welcome" || welcome.ClientID == "" {
+		return "", nil, nil, fmt.Errorf("first message is not a welcome: %s", data)
 	}
-	if msg.kind != websocket.MessageText || welcome.Type != "welcome" || welcome.ClientID == "" {
-		t.Fatalf("first message is not a welcome: %s", msg.data)
+	// The join queues the snapshot and the newcomer's roster under the room
+	// lock, so nothing else can arrive between welcome and this roster.
+	if _, data, err = conn.Read(ctx); err != nil {
+		return "", nil, nil, err
 	}
-	msg = receive(t, conn)
 	var snapshot struct {
 		Type     string            `json:"type"`
 		Elements []json.RawMessage `json:"elements"`
 	}
-	if err := json.Unmarshal(msg.data, &snapshot); err != nil || snapshot.Type != "snapshot" || snapshot.Elements == nil {
-		t.Fatalf("second message is not a snapshot: %s", msg.data)
+	if json.Unmarshal(data, &snapshot) != nil || snapshot.Type != "snapshot" || snapshot.Elements == nil {
+		return "", nil, nil, fmt.Errorf("second message is not a snapshot: %s", data)
 	}
-	return conn, welcome.ClientID, snapshot.Elements
+	if _, data, err = conn.Read(ctx); err != nil {
+		return "", nil, nil, err
+	}
+	roster, err := parseParticipants(data)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if !slices.Contains(roster, welcome.ClientID) {
+		return "", nil, nil, fmt.Errorf("newcomer's roster %v does not include itself", roster)
+	}
+	return welcome.ClientID, snapshot.Elements, roster, nil
+}
+
+func parseParticipants(data []byte) ([]string, error) {
+	var roster struct {
+		Type      string   `json:"type"`
+		ClientIDs []string `json:"clientIds"`
+	}
+	if json.Unmarshal(data, &roster) != nil || roster.Type != "participants" {
+		return nil, fmt.Errorf("expected participants, got %s", data)
+	}
+	return roster.ClientIDs, nil
+}
+
+func receiveParticipants(t *testing.T, conn *websocket.Conn) []string {
+	t.Helper()
+	msg := receive(t, conn)
+	roster, err := parseParticipants(msg.data)
+	if err != nil || msg.kind != websocket.MessageText {
+		t.Fatalf("expected participants, got %s", msg.data)
+	}
+	return roster
+}
+
+// sameSet compares rosters as sets. A duplicate ID makes them differ.
+func sameSet(got, want []string) bool {
+	return slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want)))
+}
+
+func expectParticipants(t *testing.T, conn *websocket.Conn, want ...string) {
+	t.Helper()
+	if got := receiveParticipants(t, conn); !sameSet(got, want) {
+		t.Fatalf("roster = %v, want %v", got, want)
+	}
+}
+
+// connectGroup connects n clients to one board in order and reads the rosters
+// each receives as later clients join, so every client's queue is settled on
+// the full roster before the test continues.
+func connectGroup(t *testing.T, url string, n int) ([]*websocket.Conn, []string) {
+	t.Helper()
+	conns := make([]*websocket.Conn, n)
+	ids := make([]string, n)
+	for i := range n {
+		conns[i], ids[i] = connect(t, url)
+	}
+	for i, conn := range conns[:n-1] {
+		for range n - 2 - i {
+			receiveParticipants(t, conn)
+		}
+		expectParticipants(t, conn, ids...)
+	}
+	return conns, ids
+}
+
+func expectLeave(t *testing.T, conn *websocket.Conn, clientID string) {
+	t.Helper()
+	if msg := receive(t, conn); string(msg.data) != string(lifecycleMessage("leave", clientID).data) {
+		t.Fatalf("expected leave for %s, got %s", clientID, msg.data)
+	}
+}
+
+// roomMembers takes the hub lock, then the room lock, like the server does.
+func roomMembers(hub *Hub, boardID string) []string {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	room := hub.rooms[boardID]
+	if room == nil {
+		return nil
+	}
+	room.mu.Lock()
+	defer room.mu.Unlock()
+	return slices.Collect(maps.Keys(room.clients))
 }
 
 func receive(t *testing.T, conn *websocket.Conn) message {
@@ -152,6 +262,17 @@ func waitForEmptyHub(t *testing.T, hub *Hub) {
 	t.Fatal("rooms were not cleaned up")
 }
 
+func drain(client *Client) {
+	for {
+		select {
+		case msg := <-client.outgoing:
+			client.resolve(msg)
+		default:
+			return
+		}
+	}
+}
+
 func TestConcurrentRelay(t *testing.T) {
 	_, url, _ := startServer(t)
 	var clients []*websocket.Conn
@@ -165,9 +286,14 @@ func TestConcurrentRelay(t *testing.T) {
 		ids[id] = true
 		clients = append(clients, conn)
 		clientIDs = append(clientIDs, id)
+		// connect checked the newcomer's roster; earlier clients learn of the join.
+		for _, earlier := range clients[:len(clients)-1] {
+			expectParticipants(t, earlier, clientIDs...)
+		}
 	}
-	outsider, _ := connect(t, url+"b")
-	partner, _ := connect(t, url+"b")
+	outsider, outsiderID := connect(t, url+"b")
+	partner, partnerID := connect(t, url+"b")
+	expectParticipants(t, outsider, outsiderID, partnerID)
 
 	// All three participants send concurrently. Their readers below must each
 	// receive exactly the other two participants' messages, never their own.
@@ -222,13 +348,15 @@ func TestConcurrentRelay(t *testing.T) {
 func TestDisconnectAndRejoin(t *testing.T) {
 	hub, url, _ := startServer(t)
 	alice, aliceID := connect(t, url+"a")
-	bob, _ := connect(t, url+"a")
+	bob, bobID := connect(t, url+"a")
 	_ = alice.CloseNow() // Abrupt tab/network loss, without a close handshake.
 	leave := receive(t, bob)
 	if string(leave.data) != string(lifecycleMessage("leave", aliceID).data) {
 		t.Fatalf("unexpected leave message: %s", leave.data)
 	}
-	carol, _ := connect(t, url+"a")
+	expectParticipants(t, bob, bobID)
+	carol, carolID := connect(t, url+"a")
+	expectParticipants(t, bob, bobID, carolID)
 	send(t, carol, changeMessage("still working"))
 	if got, _ := receiveChange(t, bob); got != "still working" {
 		t.Fatalf("room stopped working or sent duplicate leave: %q", got)
@@ -236,9 +364,15 @@ func TestDisconnectAndRejoin(t *testing.T) {
 	_ = bob.CloseNow()
 	_ = carol.CloseNow()
 	waitForEmptyHub(t, hub)
-	_, newID := connect(t, url+"a")
-	if newID == aliceID {
-		t.Fatal("reconnect reused the old connection ID")
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	rejoined, newID, _, roster, err := dial(ctx, url+"a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rejoined.CloseNow()
+	if newID == aliceID || !slices.Equal(roster, []string{newID}) {
+		t.Fatalf("reconnect got ID %q and roster %v, want a new ID alone", newID, roster)
 	}
 }
 
@@ -271,16 +405,17 @@ func TestFullQueueCancelsOnlySlowClient(t *testing.T) {
 	room := hub.join("a", slow)
 	hub.join("a", healthy)
 	hub.join("a", sender)
+	// Discard join rosters so the slow client overflows only on the broadcast.
+	for _, client := range []*Client{slow, healthy, sender} {
+		drain(client)
+	}
 	msg := message{kind: websocket.MessageText, data: []byte("hello")}
-	for range outgoingCapacity - 1 { // join already queued a snapshot.
+	for range outgoingCapacity {
 		slow.enqueue(msg)
 	}
 	room.broadcast(sender, msg)
 	if slowCtx.Err() == nil || healthyCtx.Err() != nil || senderCtx.Err() != nil {
 		t.Fatal("only the slow client should be cancelled")
-	}
-	if snapshot := <-healthy.outgoing; !strings.HasPrefix(string(snapshot.data), snapshotPrefix) {
-		t.Fatalf("expected the join snapshot first, got %q", snapshot.data)
 	}
 	select {
 	case got := <-healthy.outgoing:
@@ -290,8 +425,33 @@ func TestFullQueueCancelsOnlySlowClient(t *testing.T) {
 	default:
 		t.Fatal("healthy client did not receive the broadcast")
 	}
-	if len(sender.outgoing) != 1 { // Only its own join snapshot.
+	if len(sender.outgoing) != 0 {
 		t.Fatal("sender received its own broadcast")
+	}
+
+	// Cancellation ends the slow client's handler, which then calls leave. The
+	// others must see it go, and no roster may still list it.
+	hub.leave("a", room, slow)
+	for _, client := range []*Client{healthy, sender} {
+		if got := queued(t, client); string(got.data) != string(lifecycleMessage("leave", "slow").data) {
+			t.Fatalf("%s expected leave for slow, got %s", client.id, got.data)
+		}
+		roster, err := parseParticipants(queued(t, client).data)
+		if err != nil || !sameSet(roster, []string{"healthy", "sender"}) {
+			t.Fatalf("%s got roster %v (%v), want healthy and sender", client.id, roster, err)
+		}
+	}
+}
+
+// queued returns the next message waiting for an in-memory client.
+func queued(t *testing.T, client *Client) message {
+	t.Helper()
+	select {
+	case msg := <-client.outgoing:
+		return client.resolve(msg)
+	default:
+		t.Fatalf("%s has no queued message", client.id)
+		return message{}
 	}
 }
 
