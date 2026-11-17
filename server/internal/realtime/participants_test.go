@@ -20,16 +20,18 @@ func TestBrowserCannotSendLifecycleMessages(t *testing.T) {
 		{"participants", `{"type":"participants","clientIds":["c_mallory"]}`},
 		{"empty participants", `{"type":"participants","clientIds":[]}`},
 		{"welcome", `{"type":"welcome","clientId":"c_mallory"}`},
+		{"snapshot", `{"type":"snapshot","elements":[]}`},
 		{"leave for another client", fmt.Sprintf(`{"type":"leave","clientId":%q}`, bobID)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			send(t, alice, message{kind: websocket.MessageText, data: []byte(tt.body)})
 			got := receive(t, alice)
-			var reply struct{ Type, Message string }
+			var reply struct{ Type, Code, Message string }
 			if err := json.Unmarshal(got.data, &reply); err != nil {
 				t.Fatal(err)
 			}
-			if reply.Type != "error" || reply.Message != "message type must be change or cursor" {
+			if reply.Type != "error" || reply.Code != codeInvalidMessage ||
+				reply.Message != "message type must be change or cursor" {
 				t.Fatalf("unexpected reply: %s", got.data)
 			}
 			// Bob's next message must be this change: no leave or roster came first.
@@ -80,7 +82,7 @@ func TestRosterSettlesAfterConcurrentJoinsAndLeaves(t *testing.T) {
 	results := make(chan joined, stayers+leavers)
 	for i := range stayers + leavers {
 		go func() {
-			conn, id, _, err := dial(ctx, url+"a")
+			conn, id, _, _, err := dial(ctx, url+"a")
 			if err == nil && i >= stayers {
 				// dial returns after this client's roster, so the server
 				// always handles this departure after its own join.
@@ -109,7 +111,7 @@ func TestRosterSettlesAfterConcurrentJoinsAndLeaves(t *testing.T) {
 	waitForMembers(t, hub, "a", want)
 	// The probe's join is now the last membership change. Because each client
 	// receives changes in room order, its first roster with the probe is final.
-	probe, probeID, probeRoster, err := dial(ctx, url+"a")
+	probe, probeID, _, probeRoster, err := dial(ctx, url+"a")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,13 +10,14 @@ import { SCENE_SEND_INTERVAL_MS } from './realtime/useSceneSync'
 interface MockExcalidrawProps {
   excalidrawAPI?: (api: ExcalidrawImperativeAPI) => void
   onChange?: (elements: readonly OrderedExcalidrawElement[]) => void
+  theme?: 'dark' | 'light'
 }
 
 const mockExcalidraw = vi.hoisted(() => {
   let scene: readonly OrderedExcalidrawElement[] = []
   const updateScene = vi.fn(
-    ({ elements }: { elements: readonly OrderedExcalidrawElement[] }) => {
-      scene = elements
+    ({ elements }: { elements?: readonly OrderedExcalidrawElement[] }) => {
+      if (elements) scene = elements
     },
   )
 
@@ -104,6 +105,7 @@ function socket(): FakeWebSocket {
 beforeEach(() => {
   FakeWebSocket.instances = []
   mockExcalidraw.reset()
+  localStorage.setItem('chalkline.displayName', 'Test user')
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', FakeWebSocket)
   window.history.replaceState(null, '', '/?board=team')
@@ -111,11 +113,23 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
 describe('App scene synchronization', () => {
+  it('loads Excalidraw in Chalkline dark mode', () => {
+    render(<App />)
+
+    expect(mockExcalidraw.props?.theme).toBe('dark')
+    expect(
+      document
+        .getElementById('component-sidebar-list')
+        ?.classList.contains('text-gray-900'),
+    ).toBe(true)
+  })
+
   it('sends local changes through the one shared board connection', () => {
     render(<App />)
     expect(FakeWebSocket.instances).toHaveLength(1)

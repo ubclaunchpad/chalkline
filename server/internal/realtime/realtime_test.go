@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,35 +37,48 @@ func startServer(t *testing.T) (*Hub, string, context.CancelFunc) {
 
 func connect(t *testing.T, url string) (*websocket.Conn, string) {
 	t.Helper()
+	conn, id, _ := joinBoard(t, url)
+	return conn, id
+}
+
+// joinBoard connects and checks the join sequence: welcome, exactly one
+// snapshot, then a roster that includes the newcomer. It returns the
+// snapshot's elements.
+func joinBoard(t *testing.T, url string) (*websocket.Conn, string, []json.RawMessage) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	conn, id, _, err := dial(ctx, url)
+	conn, id, snapshot, _, err := dial(ctx, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.CloseNow() })
-	return conn, id
+	return conn, id, snapshot
 }
 
-// dial joins a board and reads its welcome and first roster. It returns errors
-// instead of failing the test, so goroutines other than the test's can use it.
-func dial(ctx context.Context, url string) (*websocket.Conn, string, []string, error) {
+// dial joins a board and reads its welcome, snapshot and first roster. It
+// returns errors instead of failing the test, so goroutines other than the
+// test's can use it.
+func dial(ctx context.Context, url string) (*websocket.Conn, string, []json.RawMessage, []string, error) {
 	conn, _, err := websocket.Dial(ctx, url, nil)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, nil, err
 	}
-	id, roster, err := readJoin(ctx, conn)
+	// The library's default read limit is 32 KiB. Snapshots can reach 1 MiB,
+	// and a forwarded change can be slightly larger once "from" is added.
+	conn.SetReadLimit(2 << 20)
+	id, snapshot, roster, err := readJoin(ctx, conn)
 	if err != nil {
 		_ = conn.CloseNow()
-		return nil, "", nil, err
+		return nil, "", nil, nil, err
 	}
-	return conn, id, roster, nil
+	return conn, id, snapshot, roster, nil
 }
 
-func readJoin(ctx context.Context, conn *websocket.Conn) (string, []string, error) {
+func readJoin(ctx context.Context, conn *websocket.Conn) (string, []json.RawMessage, []string, error) {
 	kind, data, err := conn.Read(ctx)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	var welcome struct {
 		Type     string `json:"type"`
@@ -72,21 +86,31 @@ func readJoin(ctx context.Context, conn *websocket.Conn) (string, []string, erro
 	}
 	if kind != websocket.MessageText || json.Unmarshal(data, &welcome) != nil ||
 		welcome.Type != "welcome" || welcome.ClientID == "" {
-		return "", nil, fmt.Errorf("first message is not a welcome: %s", data)
+		return "", nil, nil, fmt.Errorf("first message is not a welcome: %s", data)
 	}
-	// The join queues the newcomer's roster under the room lock, so nothing else
-	// can arrive between welcome and this roster.
+	// The join queues the snapshot and the newcomer's roster under the room
+	// lock, so nothing else can arrive between welcome and this roster.
 	if _, data, err = conn.Read(ctx); err != nil {
-		return "", nil, err
+		return "", nil, nil, err
+	}
+	var snapshot struct {
+		Type     string            `json:"type"`
+		Elements []json.RawMessage `json:"elements"`
+	}
+	if json.Unmarshal(data, &snapshot) != nil || snapshot.Type != "snapshot" || snapshot.Elements == nil {
+		return "", nil, nil, fmt.Errorf("second message is not a snapshot: %s", data)
+	}
+	if _, data, err = conn.Read(ctx); err != nil {
+		return "", nil, nil, err
 	}
 	roster, err := parseParticipants(data)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	if !slices.Contains(roster, welcome.ClientID) {
-		return "", nil, fmt.Errorf("newcomer's roster %v does not include itself", roster)
+		return "", nil, nil, fmt.Errorf("newcomer's roster %v does not include itself", roster)
 	}
-	return welcome.ClientID, roster, nil
+	return welcome.ClientID, snapshot.Elements, roster, nil
 }
 
 func parseParticipants(data []byte) ([]string, error) {
@@ -120,6 +144,25 @@ func expectParticipants(t *testing.T, conn *websocket.Conn, want ...string) {
 	if got := receiveParticipants(t, conn); !sameSet(got, want) {
 		t.Fatalf("roster = %v, want %v", got, want)
 	}
+}
+
+// connectGroup connects n clients to one board in order and reads the rosters
+// each receives as later clients join, so every client's queue is settled on
+// the full roster before the test continues.
+func connectGroup(t *testing.T, url string, n int) ([]*websocket.Conn, []string) {
+	t.Helper()
+	conns := make([]*websocket.Conn, n)
+	ids := make([]string, n)
+	for i := range n {
+		conns[i], ids[i] = connect(t, url)
+	}
+	for i, conn := range conns[:n-1] {
+		for range n - 2 - i {
+			receiveParticipants(t, conn)
+		}
+		expectParticipants(t, conn, ids...)
+	}
+	return conns, ids
 }
 
 func expectLeave(t *testing.T, conn *websocket.Conn, clientID string) {
@@ -162,26 +205,46 @@ func send(t *testing.T, conn *websocket.Conn, msg message) {
 	}
 }
 
+var nextElement atomic.Int64
+
+// changeMessage sends a brand-new element carrying marker. A new element ID
+// always wins, so the room forwards it, even when the same marker is reused.
 func changeMessage(marker string) message {
-	data, _ := json.Marshal(map[string]any{"type": "change", "elements": []any{}, "marker": marker})
+	return elementChange(fmt.Sprintf("e%d", nextElement.Add(1)), 1, 1, false, marker, "")
+}
+
+// elementChange sends one element. marker sits inside the element, so it is
+// part of the element's content.
+func elementChange(id string, version, nonce int64, deleted bool, marker, batchID string) message {
+	change := map[string]any{"type": "change", "elements": []any{map[string]any{
+		"id": id, "version": version, "versionNonce": nonce, "isDeleted": deleted, "marker": marker,
+	}}}
+	if batchID != "" {
+		change["batchId"] = batchID
+	}
+	data, _ := json.Marshal(change)
 	return message{kind: websocket.MessageText, data: data}
 }
 
+// receiveChange returns the marker of the first element in the next message,
+// which must be an attributed change.
 func receiveChange(t *testing.T, conn *websocket.Conn) (string, string) {
 	t.Helper()
 	msg := receive(t, conn)
 	var change struct {
-		Type   string `json:"type"`
-		From   string `json:"from"`
-		Marker string `json:"marker"`
+		Type     string `json:"type"`
+		From     string `json:"from"`
+		Elements []struct {
+			Marker string `json:"marker"`
+		} `json:"elements"`
 	}
 	if err := json.Unmarshal(msg.data, &change); err != nil {
 		t.Fatal(err)
 	}
-	if msg.kind != websocket.MessageText || change.Type != "change" || change.From == "" {
+	if msg.kind != websocket.MessageText || change.Type != "change" || change.From == "" || len(change.Elements) == 0 {
 		t.Fatalf("expected attributed change, got %s", msg.data)
 	}
-	return change.Marker, change.From
+	return change.Elements[0].Marker, change.From
 }
 
 func waitForEmptyHub(t *testing.T, hub *Hub) {
@@ -302,7 +365,7 @@ func TestDisconnectAndRejoin(t *testing.T) {
 	waitForEmptyHub(t, hub)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	rejoined, newID, roster, err := dial(ctx, url+"a")
+	rejoined, newID, _, roster, err := dial(ctx, url+"a")
 	if err != nil {
 		t.Fatal(err)
 	}
