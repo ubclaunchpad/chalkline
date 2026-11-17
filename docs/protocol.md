@@ -44,16 +44,32 @@ A newcomer receives `welcome`, then its `snapshot`, then the roster that
 includes it, all queued under the room lock in that order. Clients already in
 the room receive only the new roster, never another snapshot. When
 someone disconnects, the remaining clients receive one `leave` for that client
-and then the roster without it, so existing cursor cleanup keeps working. A
+and a roster without it. A
 reconnect gets a new client ID, a fresh snapshot and a fresh roster; the old ID does not appear
 again. No roster is sent when the last client leaves, because the room is
 deleted. A cursor that stops updating does not mean its client left; only
 `leave` and `participants` change membership.
 
-The server builds each roster from its own room membership and queues it under
-the room lock, in the same step as the join or departure. Every client
-therefore receives membership changes in the same order, and the last roster
-it receives matches the room. Rosters are temporary room state; they are not
+The server builds each roster from its own room membership under the room lock,
+in the same step as the join or departure. Only the newest roster matters, so
+each client has at most one roster waiting in its outgoing queue: a newer
+roster replaces the waiting one instead of being queued behind it. Without
+this, a burst of departures queued a `leave` and a roster per departure and
+could overflow healthy clients' 64-message queues, disconnecting them.
+
+This means a roster can arrive earlier than the change that produced it. If
+Alice and Bob leave quickly, Carol may receive `leave` Alice, then a roster
+already without Alice and Bob, then `leave` Bob. A client can likewise receive
+a message from a client after a roster that no longer lists it, but never
+after its `leave`. What still holds:
+
+- `welcome` is first, and the newcomer's own roster includes it.
+- Every remaining client receives exactly one `leave` per departure.
+- The last roster each client receives matches the room.
+
+`leave` messages are still one per departure, so roughly 60 departures before
+a client's writer catches up can still overflow its queue. Removing `leave`
+in favour of roster diffs would fix that and is a separate protocol change. Rosters are temporary room state; they are not
 stored in PostgreSQL or in the board document.
 
 Sending the full roster costs more than separate join and remove events: each
@@ -222,6 +238,12 @@ Scenario: A slow client is removed from the roster
   Given a slow client's outgoing queue is full
   When a broadcast cancels it and its connection is cleaned up
   Then the remaining clients receive a leave for it and a roster without it
+
+Scenario: Many participants leave at once
+  Given 50 participants are on board a
+  When 40 of them leave before the others' writers catch up
+  Then none of the remaining 10 is disconnected
+  And each receives one leave per departure and a final roster of the 10
 
 Scenario: A browser cannot send lifecycle messages
   Given Alice and Bob are on the same board

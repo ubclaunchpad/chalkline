@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -109,8 +111,9 @@ func TestRosterSettlesAfterConcurrentJoinsAndLeaves(t *testing.T) {
 	// Every join is confirmed, so the room reaches the expected membership only
 	// after every departure has also been handled.
 	waitForMembers(t, hub, "a", want)
-	// The probe's join is now the last membership change. Because each client
-	// receives changes in room order, its first roster with the probe is final.
+	// The probe's join is now the last membership change. Rosters are stored
+	// in room order and a waiting one is replaced by newer ones, so any roster
+	// that includes the probe is final.
 	probe, probeID, _, probeRoster, err := dial(ctx, url+"a")
 	if err != nil {
 		t.Fatal(err)
@@ -166,4 +169,111 @@ func rosterIncluding(t *testing.T, conn *websocket.Conn, id string) []string {
 			t.Fatalf("unexpected message during membership changes: %s", msg.data)
 		}
 	}
+}
+
+// Alan's report: when many clients left at once, each departure queued a leave
+// and a roster for everyone remaining, overflowing healthy clients' queues.
+func TestBurstOfDeparturesKeepsHealthyClients(t *testing.T) {
+	const total, leavers = 50, 40 // Two messages per departure would need 80 slots.
+	hub := NewHub()
+	clients := make([]*Client, total)
+	cancelled := make([]atomic.Bool, total)
+	var room *Room
+	for i := range total {
+		clients[i] = newClient(fmt.Sprintf("c_%02d", i), nil, func() { cancelled[i].Store(true) })
+		room = hub.join("a", clients[i])
+	}
+	for _, client := range clients[:leavers] {
+		hub.leave("a", room, client)
+	}
+	stayers := clients[leavers:]
+	var want []string
+	for _, client := range stayers {
+		want = append(want, client.id)
+	}
+	for i, client := range stayers {
+		if cancelled[leavers+i].Load() {
+			t.Fatalf("%s was disconnected by the burst", client.id)
+		}
+		// Each stayer holds its snapshot, one roster marker queued at its first
+		// pending roster, and one leave per departure.
+		if got := len(client.outgoing); got != 2+leavers {
+			t.Fatalf("%s has %d queued messages, want %d", client.id, got, 2+leavers)
+		}
+		if snapshot := queued(t, client); !strings.HasPrefix(string(snapshot.data), snapshotPrefix) {
+			t.Fatalf("%s expected its snapshot first, got %s", client.id, snapshot.data)
+		}
+		// The marker resolves to the newest roster, which overtakes the leaves.
+		roster, err := parseParticipants(queued(t, client).data)
+		if err != nil || !sameSet(roster, want) {
+			t.Fatalf("%s roster = %v (%v), want %v", client.id, roster, err, want)
+		}
+		for _, left := range clients[:leavers] {
+			if got := queued(t, client); string(got.data) != string(lifecycleMessage("leave", left.id).data) {
+				t.Fatalf("%s expected leave for %s, got %s", client.id, left.id, got.data)
+			}
+		}
+	}
+}
+
+func TestRosterMarkerAlwaysDeliversNewestRoster(t *testing.T) {
+	r1 := participantsMessage([]string{"c_1"})
+	r2 := participantsMessage([]string{"c_1", "c_2"})
+
+	t.Run("updates while a marker waits share it", func(t *testing.T) {
+		client := newClient("c_1", nil, func() { t.Error("unexpected cancel") })
+		client.enqueueRoster(r1)
+		client.enqueueRoster(r2)
+		if len(client.outgoing) != 1 {
+			t.Fatalf("queued %d markers, want 1", len(client.outgoing))
+		}
+		if got := queued(t, client); string(got.data) != string(r2.data) {
+			t.Fatalf("sent %s, want the newest roster", got.data)
+		}
+	})
+
+	// The writer clears the pending flag in the same step as reading the slot.
+	// A roster stored after that read must queue a new marker, or it is lost.
+	t.Run("an update after the writer reads queues a new marker", func(t *testing.T) {
+		client := newClient("c_1", nil, func() { t.Error("unexpected cancel") })
+		client.enqueueRoster(r1)
+		if got := queued(t, client); string(got.data) != string(r1.data) {
+			t.Fatalf("sent %s, want r1", got.data)
+		}
+		client.enqueueRoster(r2)
+		if got := queued(t, client); string(got.data) != string(r2.data) {
+			t.Fatalf("sent %s, want r2", got.data)
+		}
+	})
+
+	t.Run("concurrent writer ends on the newest roster", func(t *testing.T) {
+		const updates = 2000
+		client := newClient("c_1", nil, func() { t.Error("queue overflowed") })
+		done := make(chan struct{})
+		last := make(chan message)
+		go func() {
+			var sent message
+			for {
+				select {
+				case msg := <-client.outgoing:
+					sent = client.resolve(msg)
+				case <-done:
+					for len(client.outgoing) > 0 {
+						sent = client.resolve(<-client.outgoing)
+					}
+					last <- sent
+					return
+				}
+			}
+		}()
+		var newest message
+		for i := range updates {
+			newest = participantsMessage([]string{fmt.Sprintf("c_%d", i)})
+			client.enqueueRoster(newest)
+		}
+		close(done)
+		if got := <-last; string(got.data) != string(newest.data) {
+			t.Fatalf("writer ended on %s, want %s", got.data, newest.data)
+		}
+	})
 }

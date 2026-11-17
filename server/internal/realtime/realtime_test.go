@@ -265,7 +265,8 @@ func waitForEmptyHub(t *testing.T, hub *Hub) {
 func drain(client *Client) {
 	for {
 		select {
-		case <-client.outgoing:
+		case msg := <-client.outgoing:
+			client.resolve(msg)
 		default:
 			return
 		}
@@ -447,7 +448,7 @@ func queued(t *testing.T, client *Client) message {
 	t.Helper()
 	select {
 	case msg := <-client.outgoing:
-		return msg
+		return client.resolve(msg)
 	default:
 		t.Fatalf("%s has no queued message", client.id)
 		return message{}

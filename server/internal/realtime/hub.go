@@ -64,8 +64,8 @@ func (h *Hub) join(boardID string, client *Client) *Room {
 	defer room.mu.Unlock()
 	client.enqueue(snapshotMessage(room.scene.snapshot()))
 	room.clients[client.id] = client
-	// A nil sender includes the newcomer, whose welcome is already queued first.
-	room.broadcastLocked(nil, room.participantsLocked())
+	// Includes the newcomer, whose welcome and snapshot are already queued first.
+	room.broadcastRosterLocked()
 	return room // A pointer: every client uses the same Room, including its mutex.
 }
 
@@ -81,7 +81,7 @@ func (h *Hub) leave(boardID string, room *Room, client *Client) {
 		delete(h.rooms, boardID)
 		return
 	}
-	// Send leave first so existing cursor cleanup runs before the roster replaces
-	// each client's membership list.
-	room.broadcastLocked(nil, room.participantsLocked())
+	// A client whose roster marker is still queued from an earlier change gets
+	// this newer roster at that earlier position, possibly before this leave.
+	room.broadcastRosterLocked()
 }

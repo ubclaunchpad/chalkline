@@ -28,6 +28,15 @@ func (r *Room) broadcastLocked(sender *Client, msg message) {
 	}
 }
 
+// broadcastRosterLocked requires r.mu. Each client keeps at most one roster
+// waiting, so a burst of joins or departures cannot fill healthy queues.
+func (r *Room) broadcastRosterLocked() {
+	msg := r.participantsLocked()
+	for _, client := range r.clients {
+		client.enqueueRoster(msg)
+	}
+}
+
 // participantsLocked requires r.mu. Capturing the roster under the same lock
 // that queues it means every client receives rosters in membership order, so
 // the last one each client gets matches the room.
