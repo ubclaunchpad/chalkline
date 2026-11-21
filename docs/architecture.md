@@ -125,3 +125,14 @@ Run `make db-up`, `make db-migrate`, and `make check-server` with the local
 before the server checks. Store tests use unique board IDs; database tests skip
 locally when `DATABASE_URL` is absent. Fresh-store tests demonstrate durable
 storage recovery, not the still-deferred WebSocket/server restart integration.
+
+### Batched writes and exact JSON
+
+`AppendOperations` writes an ordered slice of accepted batches in one transaction.
+An exact retry of the latest committed sequence range succeeds without creating
+new rows; a different payload or sequence returns `ErrSequenceConflict`. This
+supports retrying a flush whose commit succeeded but whose response was lost.
+Migration 00003 changes element payload columns from JSONB to JSON because the
+room's content fingerprints preserve numeric spelling. Reconstruction compacts
+whitespace without rewriting numeric literals or HTML characters. Existing rows
+remain readable; normalization previously performed by JSONB cannot be undone.

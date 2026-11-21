@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,69 @@ import (
 
 	"github.com/jackc/pgx/v5"
 )
+
+// AppendOperations atomically commits ordered accepted batches. An exact retry
+// of the last committed range succeeds without adding duplicate operations.
+func (p *Postgres) AppendOperations(ctx context.Context, boardID string, expectedSequence int64, batches []json.RawMessage) (int64, error) {
+	if !validID(boardID) || expectedSequence < 0 || len(batches) == 0 || int64(len(batches)) > math.MaxInt64-expectedSequence {
+		return 0, fmt.Errorf("invalid board id, sequence, or batch count")
+	}
+	compact := make([]json.RawMessage, len(batches))
+	for i, raw := range batches {
+		parsed, err := elementMap(raw)
+		if err != nil {
+			return 0, err
+		}
+		if len(parsed) == 0 {
+			return 0, fmt.Errorf("empty operation")
+		}
+		var b bytes.Buffer
+		if err := json.Compact(&b, raw); err != nil {
+			return 0, err
+		}
+		compact[i] = b.Bytes()
+	}
+	end := expectedSequence + int64(len(batches))
+	err := pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO boards(id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, boardID); err != nil {
+			return err
+		}
+		var head int64
+		if err := tx.QueryRow(ctx, `SELECT operation_sequence FROM boards WHERE id=$1 FOR UPDATE`, boardID).Scan(&head); err != nil {
+			return err
+		}
+		if head == end {
+			for i, raw := range compact {
+				var saved []byte
+				if err := tx.QueryRow(ctx, `SELECT elements FROM board_operations WHERE board_id=$1 AND sequence=$2`, boardID, expectedSequence+int64(i)+1).Scan(&saved); err != nil {
+					return err
+				}
+				var b bytes.Buffer
+				if err := json.Compact(&b, saved); err != nil {
+					return err
+				}
+				if !bytes.Equal(raw, b.Bytes()) {
+					return ErrSequenceConflict
+				}
+			}
+			return nil
+		}
+		if head != expectedSequence {
+			return ErrSequenceConflict
+		}
+		for i, raw := range compact {
+			if _, err := tx.Exec(ctx, `INSERT INTO board_operations(board_id,sequence,elements) VALUES ($1,$2,$3)`, boardID, expectedSequence+int64(i)+1, string(raw)); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(ctx, `UPDATE boards SET operation_sequence=$2,updated_at=now() WHERE id=$1`, boardID, end)
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("append operations for %q: %w", boardID, err)
+	}
+	return end, nil
+}
 
 // AppendOperation commits one accepted batch. The expected sequence prevents
 // concurrent callers from silently recording edits in a different room order.

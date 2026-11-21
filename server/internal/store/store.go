@@ -18,6 +18,7 @@ var ErrLogStarted = errors.New("store: operation log already started")
 
 // Store saves accepted edits and reconstructs durable board state.
 type Store interface {
+	AppendOperations(ctx context.Context, boardID string, expectedSequence int64, batches []json.RawMessage) (int64, error)
 	AppendOperation(ctx context.Context, boardID string, expectedSequence int64, elements json.RawMessage) (Operation, error)
 	LoadBoard(ctx context.Context, boardID string) (Snapshot, error)
 	Checkpoint(ctx context.Context, boardID string) (Snapshot, error)

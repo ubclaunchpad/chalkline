@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -83,9 +84,18 @@ func RebuildSnapshot(base Snapshot, operations []Operation) (Snapshot, error) {
 	for _, id := range ids {
 		ordered = append(ordered, elements[id])
 	}
-	raw, err := json.Marshal(ordered)
-	if err != nil {
-		return Snapshot{}, err
+	var out bytes.Buffer
+	out.WriteByte('[')
+	for i, raw := range ordered {
+		if i > 0 {
+			out.WriteByte(',')
+		}
+		var compact bytes.Buffer
+		if err := json.Compact(&compact, raw); err != nil {
+			return Snapshot{}, err
+		}
+		out.Write(compact.Bytes())
 	}
-	return Snapshot{Elements: raw, ThroughSequence: sequence}, nil
+	out.WriteByte(']')
+	return Snapshot{Elements: out.Bytes(), ThroughSequence: sequence}, nil
 }

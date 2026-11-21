@@ -140,9 +140,9 @@ func TestOperationFailures(t *testing.T) {
 	if _, err := s.LoadBoard(t.Context(), board); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("failed append created board: %v", err)
 	}
-	// Valid JSON that PostgreSQL jsonb cannot represent forces a transaction rollback.
-	if _, err := s.AppendOperation(t.Context(), board, 0, json.RawMessage(`[{"id":"a","text":"\u0000"}]`)); err == nil {
-		t.Fatal("database accepted NUL")
+	// Invalid payload must not create a board.
+	if _, err := s.AppendOperation(t.Context(), board, 0, json.RawMessage(`[{"id":"a",]`)); err == nil {
+		t.Fatal("accepted malformed JSON")
 	}
 	if _, err := s.LoadBoard(t.Context(), board); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("database failure created board: %v", err)
