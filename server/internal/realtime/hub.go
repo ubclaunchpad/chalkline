@@ -10,8 +10,15 @@ import (
 )
 
 type Hub struct {
-	mu    sync.Mutex
-	rooms map[string]*Room // board ID → room
+	clients           sync.WaitGroup
+	store             PersistenceStore
+	persistenceConfig PersistenceConfig
+	workerCtx         context.Context
+	cancelWorkers     context.CancelFunc
+	workers           sync.WaitGroup
+	closing           bool
+	mu                sync.Mutex
+	rooms             map[string]*Room // board ID → room
 }
 
 func NewHub() *Hub {
@@ -23,6 +30,14 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if err := validateBoardID(boardID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	if h.store != nil {
+		room, err := h.reserve(r.Context(), boardID)
+		if err != nil {
+			http.Error(w, "board unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		defer h.releaseReservation(boardID, room)
 	}
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
@@ -41,6 +56,9 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// writer will send this first, even if someone broadcasts during the join.
 	client.enqueue(lifecycleMessage("welcome", client.id))
 	room := h.join(boardID, client)
+	if room == nil {
+		return
+	}
 	defer h.leave(boardID, room, client)
 
 	// The handler stays alive for this connection. Only this handler removes the
@@ -55,6 +73,9 @@ func (h *Hub) join(boardID string, client *Client) *Room {
 	// between the snapshot and later broadcasts (G2).
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.closing {
+		return nil
+	}
 	room := h.rooms[boardID]
 	if room == nil {
 		room = &Room{clients: make(map[string]*Client), scene: newScene()}
@@ -64,6 +85,7 @@ func (h *Hub) join(boardID string, client *Client) *Room {
 	defer room.mu.Unlock()
 	client.enqueue(snapshotMessage(room.scene.snapshot()))
 	room.clients[client.id] = client
+	h.clients.Add(1)
 	return room // A pointer: every client uses the same Room, including its mutex.
 }
 
@@ -74,8 +96,10 @@ func (h *Hub) leave(boardID string, room *Room, client *Client) {
 	room.mu.Lock()
 	defer room.mu.Unlock()
 	delete(room.clients, client.id)
+	h.clients.Done()
 	room.broadcastLocked(client, msg)
-	if len(room.clients) == 0 {
+	if len(room.clients) == 0 && room.persistence == nil {
 		delete(h.rooms, boardID)
 	}
+	room.signalPersistence()
 }

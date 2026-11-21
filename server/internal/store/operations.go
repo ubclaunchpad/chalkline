@@ -74,44 +74,6 @@ func (p *Postgres) AppendOperations(ctx context.Context, boardID string, expecte
 	return end, nil
 }
 
-// AppendOperation commits one accepted batch. The expected sequence prevents
-// concurrent callers from silently recording edits in a different room order.
-// A commit error can have an unknown outcome: callers must reload, not blindly retry.
-func (p *Postgres) AppendOperation(ctx context.Context, boardID string, expectedSequence int64, elements json.RawMessage) (Operation, error) {
-	if !validID(boardID) || expectedSequence < 0 || expectedSequence == math.MaxInt64 {
-		return Operation{}, fmt.Errorf("invalid board id or sequence")
-	}
-	parsed, err := elementMap(elements)
-	if err != nil {
-		return Operation{}, err
-	}
-	if len(parsed) == 0 {
-		return Operation{}, fmt.Errorf("empty operation")
-	}
-	sequence := expectedSequence + 1
-	err = pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO boards (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, boardID); err != nil {
-			return err
-		}
-		var current int64
-		if err := tx.QueryRow(ctx, `SELECT operation_sequence FROM boards WHERE id = $1 FOR UPDATE`, boardID).Scan(&current); err != nil {
-			return err
-		}
-		if current != expectedSequence {
-			return ErrSequenceConflict
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO board_operations (board_id, sequence, elements) VALUES ($1, $2, $3)`, boardID, sequence, string(elements)); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx, `UPDATE boards SET operation_sequence = $2, updated_at = now() WHERE id = $1`, boardID, sequence)
-		return err
-	})
-	if err != nil {
-		return Operation{}, fmt.Errorf("append operation for %q: %w", boardID, err)
-	}
-	return Operation{Sequence: sequence, Elements: append(json.RawMessage(nil), elements...)}, nil
-}
-
 // LoadBoard reads a consistent snapshot and log tail, including boards that have
 // operations but no checkpoint yet. Database errors never become an empty scene.
 func (p *Postgres) LoadBoard(ctx context.Context, boardID string) (Snapshot, error) {

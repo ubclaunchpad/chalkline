@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -15,7 +16,7 @@ var deletedRevision = json.RawMessage(`[{"id":"a","version":2,"versionNonce":4,"
 
 func appendTest(t *testing.T, s *Postgres, board string, seq int64, raw json.RawMessage) {
 	t.Helper()
-	op, err := s.AppendOperation(t.Context(), board, seq, raw)
+	op, err := appendOne(s, t.Context(), board, seq, raw)
 	if err != nil || op.Sequence != seq+1 {
 		t.Fatalf("append: %+v %v", op, err)
 	}
@@ -55,9 +56,6 @@ func TestOperationRecoveryAndCheckpoint(t *testing.T) {
 	if snapshots != 2 || operations != 2 {
 		t.Fatalf("snapshots=%d operations=%d", snapshots, operations)
 	}
-	if err := s.SaveSnapshot(t.Context(), board, revision); !errors.Is(err, ErrLogStarted) {
-		t.Fatalf("untracked snapshot: %v", err)
-	}
 	// Corrupt a covered record: recovery must not read it again.
 	if _, err := s.pool.Exec(t.Context(), `UPDATE board_operations SET elements='[null]' WHERE board_id=$1 AND sequence=1`, board); err != nil {
 		t.Fatal(err)
@@ -72,9 +70,7 @@ func TestOperationRecoveryAndCheckpoint(t *testing.T) {
 func TestOperationIsolationAndLegacySnapshot(t *testing.T) {
 	s := newTestStore(t)
 	a, b := newBoardID(t), newBoardID(t)
-	if err := s.SaveSnapshot(t.Context(), a, json.RawMessage(`[{"id":"legacy"}]`)); err != nil {
-		t.Fatal(err)
-	}
+	seedSnapshot(t, s, a, json.RawMessage(`[{"id":"legacy"}]`))
 	appendTest(t, s, a, 0, revision)
 	appendTest(t, s, b, 0, deletedRevision)
 	got, err := s.LoadBoard(t.Context(), a)
@@ -100,8 +96,12 @@ func TestConcurrentAppendsAndCheckpoints(t *testing.T) {
 	appendTest(t, s, board, 0, revision)
 	var wg sync.WaitGroup
 	results := make(chan error, 12)
-	for range 8 {
-		wg.Go(func() { _, err := s.AppendOperation(t.Context(), board, 1, deletedRevision); results <- err })
+	for i := range 8 {
+		wg.Go(func() {
+			raw := json.RawMessage(fmt.Sprintf(`[{"id":"a","version":2,"versionNonce":%d,"isDeleted":true}]`, i))
+			_, err := appendOne(s, t.Context(), board, 1, raw)
+			results <- err
+		})
 	}
 	for range 4 {
 		wg.Go(func() {
@@ -128,20 +128,23 @@ func TestConcurrentAppendsAndCheckpoints(t *testing.T) {
 	if err != nil || got.ThroughSequence != 2 {
 		t.Fatalf("load: %+v %v", got, err)
 	}
-	assertJSONEqual(t, got.Elements, deletedRevision)
+	var items []map[string]any
+	if err := json.Unmarshal(got.Elements, &items); err != nil || len(items) != 1 || items[0]["isDeleted"] != true {
+		t.Fatalf("bad restored winner: %s", got.Elements)
+	}
 }
 
 func TestOperationFailures(t *testing.T) {
 	s := newTestStore(t)
 	board := newBoardID(t)
-	if _, err := s.AppendOperation(t.Context(), board, 4, revision); !errors.Is(err, ErrSequenceConflict) {
+	if _, err := appendOne(s, t.Context(), board, 4, revision); !errors.Is(err, ErrSequenceConflict) {
 		t.Fatal(err)
 	}
 	if _, err := s.LoadBoard(t.Context(), board); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("failed append created board: %v", err)
 	}
 	// Invalid payload must not create a board.
-	if _, err := s.AppendOperation(t.Context(), board, 0, json.RawMessage(`[{"id":"a",]`)); err == nil {
+	if _, err := appendOne(s, t.Context(), board, 0, json.RawMessage(`[{"id":"a",]`)); err == nil {
 		t.Fatal("accepted malformed JSON")
 	}
 	if _, err := s.LoadBoard(t.Context(), board); !errors.Is(err, ErrNotFound) {
@@ -150,7 +153,7 @@ func TestOperationFailures(t *testing.T) {
 	appendTest(t, s, board, 0, revision)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := s.AppendOperation(ctx, board, 1, deletedRevision); err == nil {
+	if _, err := appendOne(s, ctx, board, 1, deletedRevision); err == nil {
 		t.Fatal("canceled append succeeded")
 	}
 	if _, err := s.LoadBoard(ctx, board); err == nil {
@@ -166,14 +169,16 @@ func TestOperationFailures(t *testing.T) {
 	if _, err := s.Checkpoint(t.Context(), board); err == nil {
 		t.Fatal("checkpoint accepted log hole")
 	}
-	if _, err := s.LatestSnapshot(t.Context(), board); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("failed checkpoint persisted: %v", err)
+	var count int
+	if err := s.pool.QueryRow(t.Context(), `SELECT count(*) FROM board_snapshots WHERE board_id=$1`, board).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("failed checkpoint persisted: count=%d err=%v", count, err)
 	}
+
 	s.pool.Close()
 	if _, err := s.LoadBoard(t.Context(), board); err == nil || errors.Is(err, ErrNotFound) {
 		t.Fatalf("unavailable database: %v", err)
 	}
-	if _, err := s.AppendOperation(t.Context(), board, 1, revision); err == nil {
+	if _, err := appendOne(s, t.Context(), board, 1, revision); err == nil {
 		t.Fatal("closed pool append succeeded")
 	}
 	if _, err := s.Checkpoint(t.Context(), board); err == nil {
