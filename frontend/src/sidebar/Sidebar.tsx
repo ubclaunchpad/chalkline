@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
+import { ChalklineIcon } from '../design/Icon'
 import { addComponentAtCenter } from './addComponent'
 import { catalog, COMPONENT_DRAG_MIME, type CatalogEntry } from './catalog'
 
@@ -17,7 +19,7 @@ export function Sidebar({ excalidrawAPI }: SidebarProps) {
       <div
         id={LIST_ID}
         hidden={collapsed}
-        className="h-full w-56 overflow-y-auto border-r border-gray-200 bg-white"
+        className="h-full w-56 overflow-y-auto border-r border-gray-200 bg-white text-gray-900"
       >
         <ul className="flex flex-col gap-2 p-3">
           {catalog.map((entry) => (
@@ -34,12 +36,13 @@ export function Sidebar({ excalidrawAPI }: SidebarProps) {
         }}
         aria-expanded={!collapsed}
         aria-controls={LIST_ID}
-        className="h-8 w-6 self-start rounded-r-md border border-gray-200 bg-white text-xs leading-none text-gray-600 hover:bg-gray-50"
+        aria-label={collapsed ? 'Show component list' : 'Hide component list'}
+        className="inline-flex h-8 w-6 items-center justify-center self-start rounded-r-md border border-gray-200 bg-white text-xs leading-none text-gray-600 hover:bg-gray-50"
       >
-        {collapsed ? '»' : '«'}
-        <span className="sr-only">
-          {collapsed ? 'Show component list' : 'Hide component list'}
-        </span>
+        <ChalklineIcon
+          icon={collapsed ? IconChevronRight : IconChevronLeft}
+          size={16}
+        />
       </button>
     </div>
   )

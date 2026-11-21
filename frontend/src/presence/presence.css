@@ -1,0 +1,6 @@
+/* #29 uses its own participant list. Hide Excalidraw's avatar/follow controls
+   on desktop and in the mobile menu while retaining built-in canvas cursors. */
+.excalidraw .UserList__wrapper,
+.excalidraw .UserList-Wrapper {
+  display: none;
+}
