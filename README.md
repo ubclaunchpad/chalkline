@@ -27,10 +27,12 @@ from the experience and enjoy building the project together.
 ## Run it locally
 
 You need Bun 1.3.4, Go 1.25, and Docker (only for the database). From the
-repository root:
+repository root, first copy `.env.example` to `.env`, then:
 
 ```sh
 make install
+make db-up
+make db-migrate
 make dev
 ```
 
@@ -49,16 +51,17 @@ Copy `.env.example` to `.env`, then:
   again is safe; applied migrations are skipped.
 - `make db-down` stops the container. Data persists in a Docker volume.
 
-The server does not connect to the database yet. The store's integration tests
-run against `DATABASE_URL` after `make db-up && make db-migrate`, and are
-skipped when it isn't set. CI starts PostgreSQL, applies migrations, and runs
-these tests in the existing server job.
+The server requires `DATABASE_URL` and a reachable PostgreSQL database. Apply
+migrations before starting `make dev`. Accepted edits are flushed to the operation
+log every 250 ms; dirty boards get a checkpoint every 30 seconds, with a final
+flush and checkpoint attempt when everyone leaves. See the failure and recovery
+contract in [Architecture](docs/architecture.md#storage-contract).
 
-The store supports ordered accepted-edit batches, recovery from a snapshot plus
-later operations, and explicit checkpoint creation. This is the storage-only
-part of #48: drawing in the browser still does not write to PostgreSQL. Room
-integration and automatic saving follow PR #70. See the persistence contract in
-[Architecture](docs/architecture.md#storage-contract).
+Store and WebSocket persistence tests run against `DATABASE_URL`; they skip when
+it is unset. CI provisions PostgreSQL and applies migrations before server tests.
+For an isolated database, pass a command-line Make override, for example
+`make DATABASE_URL='<test connection string>' check-server`, so `.env` cannot
+override the selection. Browser snapshot rendering remains #51 work.
 
 ### Checks
 
