@@ -1,23 +1,25 @@
-import { useState } from 'react'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { ChalklineIcon } from '../design/Icon'
 import { addComponentAtCenter } from './addComponent'
-import { catalog, COMPONENT_DRAG_MIME, type CatalogEntry } from './catalog'
+import {
+  catalog,
+  COMPONENT_DRAG_MIME,
+  COMPONENT_LIST_ID,
+  type CatalogEntry,
+} from './catalog'
 
 interface SidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null
+  collapsed: boolean
+  onToggle: () => void
 }
 
-const LIST_ID = 'component-sidebar-list'
-
-export function Sidebar({ excalidrawAPI }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
-
+export function Sidebar({ excalidrawAPI, collapsed, onToggle }: SidebarProps) {
   return (
     <div className="flex h-full shrink-0">
       <div
-        id={LIST_ID}
+        id={COMPONENT_LIST_ID}
         hidden={collapsed}
         className="h-full w-56 overflow-y-auto border-r border-gray-200 bg-white text-gray-900"
       >
@@ -31,11 +33,9 @@ export function Sidebar({ excalidrawAPI }: SidebarProps) {
       </div>
       <button
         type="button"
-        onClick={() => {
-          setCollapsed((value) => !value)
-        }}
+        onClick={onToggle}
         aria-expanded={!collapsed}
-        aria-controls={LIST_ID}
+        aria-controls={COMPONENT_LIST_ID}
         aria-label={collapsed ? 'Show component list' : 'Hide component list'}
         className="inline-flex h-8 w-6 items-center justify-center self-start rounded-r-md border border-gray-200 bg-white text-xs leading-none text-gray-600 hover:bg-gray-50"
       >

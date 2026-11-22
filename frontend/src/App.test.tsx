@@ -23,7 +23,11 @@ const mockExcalidraw = vi.hoisted(() => {
 
   return {
     api: {
+      getAppState: () => ({ activeTool: { type: 'selection' } }),
       getSceneElementsIncludingDeleted: () => scene,
+      onChange: () => () => undefined,
+      onPointerUp: () => () => undefined,
+      setActiveTool: () => undefined,
       updateScene,
     } as unknown as ExcalidrawImperativeAPI,
     updateScene,
@@ -108,6 +112,13 @@ beforeEach(() => {
   localStorage.setItem('chalkline.displayName', 'Test user')
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', FakeWebSocket)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe = () => undefined
+      disconnect = () => undefined
+    },
+  )
   window.history.replaceState(null, '', '/?board=team')
 })
 

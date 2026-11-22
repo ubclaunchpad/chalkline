@@ -1,0 +1,15 @@
+/* Excalidraw 0.18.1 has no toolbar-replacement API. Keep every version-specific
+   selector here, and recheck them when upgrading. Only the tool pickers are
+   hidden; menus, dialogs, zoom, the mobile footer and shortcuts stay available. */
+.excalidraw .App-menu_top .shapes-section {
+  visibility: hidden;
+}
+
+.excalidraw .App-toolbar--mobile {
+  display: none;
+}
+
+/* Keep shape properties clear of the toolbar's default position. */
+.excalidraw .App-menu__left {
+  margin-left: 56px;
+}

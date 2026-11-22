@@ -1,0 +1,42 @@
+/* Separate names so that collapsing, expanding, and pivoting each restart the
+   animation. It runs on the contents because scaling the toolbar itself would
+   also scale its translate and throw it toward the top-left of the canvas. */
+.floating-toolbar[aria-orientation='vertical'] > * {
+  animation: toolbar-pivot-vertical 160ms ease-out;
+}
+
+.floating-toolbar[aria-orientation='horizontal'] > * {
+  animation: toolbar-pivot-horizontal 160ms ease-out;
+}
+
+.floating-toolbar[data-collapsed='true'][aria-orientation] > * {
+  animation: toolbar-collapse 120ms ease-out;
+}
+
+@keyframes toolbar-pivot-vertical {
+  from {
+    opacity: 0.6;
+    scale: 0.94;
+  }
+}
+
+@keyframes toolbar-pivot-horizontal {
+  from {
+    opacity: 0.6;
+    scale: 0.94;
+  }
+}
+
+@keyframes toolbar-collapse {
+  from {
+    opacity: 0.6;
+    scale: 0.94;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-toolbar[aria-orientation] > *,
+  .floating-toolbar[data-collapsed='true'][aria-orientation] > * {
+    animation: none;
+  }
+}
