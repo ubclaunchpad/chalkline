@@ -59,8 +59,8 @@ func decodeElements(t *testing.T, raws []json.RawMessage) map[string]sceneElemen
 
 func TestLateJoinerGetsSnapshot(t *testing.T) {
 	_, url, _ := startServer(t)
-	alice, _ := connect(t, url+"a")
-	observer, _ := connect(t, url+"a")
+	conns, _ := connectGroup(t, url+"a", 2)
+	alice, observer := conns[0], conns[1]
 	for _, msg := range []message{
 		elementChange("x", 1, 1, false, "x1", ""),
 		elementChange("y", 1, 1, false, "y1", ""),
@@ -127,8 +127,8 @@ func TestConflictingEditsConvergeInEitherOrder(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, url, _ := startServer(t)
-			sender, _ := connect(t, url+"a")
-			observer, _ := connect(t, url+"a")
+			conns, _ := connectGroup(t, url+"a", 2)
+			sender, observer := conns[0], conns[1]
 			send(t, sender, tt.first)
 			receiveChange(t, observer)
 			send(t, sender, tt.second)
@@ -147,8 +147,8 @@ func TestConflictingEditsConvergeInEitherOrder(t *testing.T) {
 
 func TestStaleEditIsCorrectedNotForwarded(t *testing.T) {
 	_, url, _ := startServer(t)
-	alice, _ := connect(t, url+"a")
-	bob, bobID := connect(t, url+"a")
+	conns, ids := connectGroup(t, url+"a", 2)
+	alice, bob, bobID := conns[0], conns[1], ids[1]
 	send(t, alice, elementChange("x", 3, 1, false, "current", ""))
 	if marker, _ := receiveChange(t, bob); marker != "current" {
 		t.Fatalf("unexpected forward: %q", marker)
@@ -198,8 +198,8 @@ func TestRejectedChangesLeaveBoardIntact(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, url, _ := startServer(t)
-			alice, _ := connect(t, url+"a")
-			bob, _ := connect(t, url+"a")
+			conns, _ := connectGroup(t, url+"a", 2)
+			alice, bob := conns[0], conns[1]
 			send(t, alice, elementChange("x", 1, 1, false, "base", ""))
 			receiveChange(t, bob)
 			if tt.fill {
@@ -229,9 +229,8 @@ func TestRejectedChangesLeaveBoardIntact(t *testing.T) {
 
 func TestReconnectGetsMissedEdits(t *testing.T) {
 	_, url, _ := startServer(t)
-	alice, _ := connect(t, url+"a")
-	bob, bobID := connect(t, url+"a")
-	observer, _ := connect(t, url+"a")
+	conns, ids := connectGroup(t, url+"a", 3)
+	alice, bob, observer, bobID := conns[0], conns[1], conns[2], ids[1]
 	send(t, alice, elementChange("x", 1, 1, false, "x1", ""))
 	send(t, alice, elementChange("y", 1, 1, false, "y1", ""))
 	for range 2 {
@@ -241,9 +240,8 @@ func TestReconnectGetsMissedEdits(t *testing.T) {
 
 	_ = bob.CloseNow()
 	for _, conn := range []*websocket.Conn{alice, observer} {
-		if msg := receiveMessage(t, conn); msg.Type != "leave" {
-			t.Fatalf("expected Bob's leave, got %+v", msg)
-		}
+		expectLeave(t, conn, bobID)
+		expectParticipants(t, conn, ids[0], ids[2])
 	}
 	send(t, alice, elementChange("x", 2, 1, false, "x2", ""))
 	send(t, alice, elementChange("y", 2, 1, true, "y deleted", ""))
@@ -262,10 +260,9 @@ func TestReconnectGetsMissedEdits(t *testing.T) {
 
 func TestBoardsAreIsolated(t *testing.T) {
 	_, url, _ := startServer(t)
-	a1, _ := connect(t, url+"a")
-	a2, _ := connect(t, url+"a")
-	b1, _ := connect(t, url+"b")
-	b2, _ := connect(t, url+"b")
+	a, _ := connectGroup(t, url+"a", 2)
+	b, _ := connectGroup(t, url+"b", 2)
+	a1, a2, b1, b2 := a[0], a[1], b[0], b[1]
 	send(t, a1, changeMessage("on a"))
 	receiveChange(t, a2)
 	send(t, b2, changeMessage("on b"))
@@ -282,8 +279,8 @@ func TestBoardsAreIsolated(t *testing.T) {
 
 func TestCursorIsNotStored(t *testing.T) {
 	_, url, _ := startServer(t)
-	alice, _ := connect(t, url+"a")
-	observer, _ := connect(t, url+"a")
+	conns, _ := connectGroup(t, url+"a", 2)
+	alice, observer := conns[0], conns[1]
 	send(t, alice, message{kind: websocket.MessageText, data: []byte(`{"type":"cursor","x":1,"y":2}`)})
 	if msg := receiveMessage(t, observer); msg.Type != "cursor" {
 		t.Fatalf("expected the cursor, got %+v", msg)
