@@ -146,21 +146,18 @@ func expectParticipants(t *testing.T, conn *websocket.Conn, want ...string) {
 	}
 }
 
-// connectGroup connects n clients to one board in order and reads the rosters
-// each receives as later clients join, so every client's queue is settled on
-// the full roster before the test continues.
+// connectGroup connects n clients to one board in order. It reads each join's
+// roster before the next join, because a roster still waiting would otherwise
+// be replaced by the newer one.
 func connectGroup(t *testing.T, url string, n int) ([]*websocket.Conn, []string) {
 	t.Helper()
 	conns := make([]*websocket.Conn, n)
 	ids := make([]string, n)
 	for i := range n {
 		conns[i], ids[i] = connect(t, url)
-	}
-	for i, conn := range conns[:n-1] {
-		for range n - 2 - i {
-			receiveParticipants(t, conn)
+		for _, earlier := range conns[:i] {
+			expectParticipants(t, earlier, ids[:i+1]...)
 		}
-		expectParticipants(t, conn, ids...)
 	}
 	return conns, ids
 }
