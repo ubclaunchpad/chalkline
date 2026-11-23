@@ -86,6 +86,8 @@ func (h *Hub) join(boardID string, client *Client) *Room {
 	client.enqueue(snapshotMessage(room.scene.snapshot()))
 	room.clients[client.id] = client
 	h.clients.Add(1)
+	// Includes the newcomer, whose welcome and snapshot are already queued first.
+	room.broadcastRosterLocked()
 	return room // A pointer: every client uses the same Room, including its mutex.
 }
 
@@ -100,6 +102,10 @@ func (h *Hub) leave(boardID string, room *Room, client *Client) {
 	room.broadcastLocked(client, msg)
 	if len(room.clients) == 0 && room.persistence == nil {
 		delete(h.rooms, boardID)
+		return
 	}
 	room.signalPersistence()
+	// A client whose roster marker is still queued from an earlier change gets
+	// this newer roster at that earlier position, possibly before this leave.
+	room.broadcastRosterLocked()
 }

@@ -109,8 +109,8 @@ func TestRoomFlushAndLastDeparture(t *testing.T) {
 	cfg.FlushInterval = time.Hour
 	cfg.CheckpointInterval = time.Hour
 	h, url := persistentServer(t, m, cfg)
-	alice, _ := connect(t, url+"a")
-	bob, _ := connect(t, url+"a")
+	clients, _ := connectGroup(t, url+"a", 2)
+	alice, bob := clients[0], clients[1]
 	send(t, alice, editMessage(1))
 	receive(t, bob)
 	select {
@@ -136,8 +136,8 @@ func TestRoomFailurePausesAndRetries(t *testing.T) {
 	cfg.FlushInterval = 10 * time.Millisecond
 	cfg.RetryInterval = 20 * time.Millisecond
 	_, url := persistentServer(t, m, cfg)
-	alice, _ := connect(t, url+"a")
-	bob, _ := connect(t, url+"a")
+	clients, _ := connectGroup(t, url+"a", 2)
+	alice, bob := clients[0], clients[1]
 	send(t, alice, editMessage(1))
 	receive(t, bob)
 	awaitCall(t, m.calls)
@@ -174,8 +174,8 @@ func TestBufferLimitRejectsBeforeMutation(t *testing.T) {
 	cfg.FlushInterval = time.Hour
 	cfg.MaxPendingBatches = 1
 	_, url := persistentServer(t, m, cfg)
-	a, _ := connect(t, url+"a")
-	b, _ := connect(t, url+"a")
+	clients, _ := connectGroup(t, url+"a", 2)
+	a, b := clients[0], clients[1]
 	send(t, a, editMessage(1))
 	receive(t, b)
 	send(t, a, editMessage(2))
@@ -204,8 +204,8 @@ func TestPostgresWebSocketRecovery(t *testing.T) {
 	cfg.FlushInterval = time.Hour
 	h, ws := persistentServer(t, s, cfg)
 	board := "recovery-" + rand.Text()
-	a, _ := connect(t, ws+board)
-	b, _ := connect(t, ws+board)
+	clients, _ := connectGroup(t, ws+board, 2)
+	a, b := clients[0], clients[1]
 	send(t, a, editMessage(1))
 	receive(t, b)
 	send(t, a, editMessage(2))
@@ -321,8 +321,8 @@ func TestLostCommitResponseRecovery(t *testing.T) {
 	cfg.RetryInterval = 10 * time.Millisecond
 	h, ws := persistentServer(t, s, cfg)
 	board := "lost-" + rand.Text()
-	a, _ := connect(t, ws+board)
-	b, _ := connect(t, ws+board)
+	clients, _ := connectGroup(t, ws+board, 2)
+	a, b := clients[0], clients[1]
 	send(t, a, editMessage(1))
 	receive(t, b)
 	if msg := receive(t, a); !strings.Contains(string(msg.data), "persistence_unavailable") {
@@ -342,8 +342,8 @@ func TestLostCommitResponseRecovery(t *testing.T) {
 func TestTransientMessagesAndLoadFailure(t *testing.T) {
 	m := newMemoryPersistence()
 	h, ws := persistentServer(t, m, DefaultPersistenceConfig())
-	a, _ := connect(t, ws+"a")
-	b, _ := connect(t, ws+"a")
+	clients, _ := connectGroup(t, ws+"a", 2)
+	a, b := clients[0], clients[1]
 	send(t, a, message{kind: websocket.MessageText, data: []byte(`{"type":"cursor","x":1,"y":2}`)})
 	receive(t, b)
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
@@ -476,8 +476,8 @@ func TestEditsDuringFlushRemainQueued(t *testing.T) {
 	cfg := DefaultPersistenceConfig()
 	cfg.FlushInterval = 10 * time.Millisecond
 	h, ws := persistentServer(t, s, cfg)
-	a, _ := connect(t, ws+"a")
-	b, _ := connect(t, ws+"a")
+	clients, _ := connectGroup(t, ws+"a", 2)
+	a, b := clients[0], clients[1]
 	send(t, a, editMessage(1))
 	receive(t, b)
 	awaitCall(t, s.entered)
