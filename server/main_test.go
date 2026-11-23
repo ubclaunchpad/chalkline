@@ -32,3 +32,9 @@ func TestLoadConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestRunRequiresDatabase(t *testing.T) {
+	if err := run(t.Context(), func(string) string { return "" }); err == nil || err.Error() != "DATABASE_URL is required" {
+		t.Fatalf("missing database: %v", err)
+	}
+}

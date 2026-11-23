@@ -20,7 +20,8 @@ against it (see [Sending changes](#sending-changes)). Accepted messages go to
 everyone else in the room with a trusted `from` field. The only message sent
 back to the sender about its own change is a correction or an error. On
 disconnect the server sends `{"type":"leave","clientId":"c_..."}` to the
-remaining clients. It deletes an empty room together with its board.
+remaining clients. It flushes pending edits before evicting an empty room;
+durable board data remains in PostgreSQL.
 Reconnecting creates a new client ID and receives a fresh snapshot.
 
 ### Who is in the room
@@ -116,6 +117,7 @@ forwarded:
 | `message_too_large` | more than 1 MiB | `message too large` |
 | `invalid_element` | an element breaks a rule above | `elements must be an array`, `element must be a JSON object`, `element id must contain 1 to 64 characters`, `version and versionNonce must be whole numbers from 0 to 9007199254740991`, `isDeleted must be true or false`, `element id appears twice in one change` |
 | `conflict` | same `version` and `versionNonce` as the room's copy, different content | `same version and versionNonce with different content` |
+| `persistence_unavailable` | saving failed, pending buffer is full, or shutdown has begun | `Saving is unavailable; new changes are temporarily rejected` |
 | `board_full` | the change would grow the board past its limit | `board is full` |
 
 `elementId` is set for `conflict`, and for `invalid_element` when the element's
@@ -173,9 +175,9 @@ holds about 300 labeled boxes and 600 arrows. A forwarded change can be about
 1. Stay read-only ("catching up") until a valid `snapshot` arrives. Never
    become editable from an invalid or incomplete transfer.
 2. Merge the snapshot into the local board; never replace the board with it.
-   Then send back every local element that beats the snapshot. Rooms are
-   memory-only until #48, so after a room empties the server's copy can be
-   partial, and this is how it is refilled.
+   Then send back locally authored revisions that beat the snapshot. The server
+   restores durable data from PostgreSQL; unsent or uncommitted local revisions
+   still need reconciliation through #51.
 3. If the snapshot arrives before the editor is ready, hold it until it can be
    applied.
 
@@ -203,8 +205,8 @@ which one an error refers to.
   whole batch, and today's browser ignores `error` and never re-sends.
 - **A full board stays full:** deletes free almost nothing, so a board at the
   new-element limit takes no new shapes while the room lives.
-- **The room's copy can be partial:** it is deleted when the room empties or
-  the server restarts, until #51 re-sends local boards and #48 saves them.
+- **Uncommitted edits can be lost in a crash:** the join snapshot restores the
+  last durable state. Broadcasting an edit is not a durable-save acknowledgment.
 
 The tests cover these observable scenarios:
 
@@ -327,3 +329,15 @@ if the rule above surprises users.
 - Server: `beats` and `scene.apply` in `server/internal/realtime/scene.go`
   (#47). The server's tests repeat the browser's `mergeElements` cases, so both
   pick the same winner.
+
+## Persistence failures
+
+Before upgrade, loading errors return HTTP 503 rather than an empty snapshot.
+Only a genuinely unknown board starts empty. Saving is buffered: changes are
+normally logged every 250 ms and dirty boards checkpointed every 30 seconds.
+On a log failure, the server retains pending data, sends `persistence_unavailable`
+to connected clients, and rejects further changes until the queue is committed.
+Rejected submissions echo their `batchId` when available. Cursors remain transient
+and continue to flow. No saved acknowledgment or new frontend UI is introduced;
+#51 must handle rejected local work. See the architecture storage contract for
+retry, backpressure, checkpoint, and shutdown details.
