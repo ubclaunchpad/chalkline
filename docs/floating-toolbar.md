@@ -102,6 +102,16 @@ Feature: Floating board toolbar
     When I press the down arrow
     Then the toolbar docks to the bottom edge as a horizontal bar
 
+  Scenario: Shape properties beside a toolbar on the left edge
+    Given the toolbar is attached to the left edge
+    When I select a shape
+    Then the properties panel opens just right of the toolbar
+
+  Scenario: Shape properties when the toolbar is elsewhere
+    Given the toolbar is attached to the right, top, or bottom edge
+    When I select a shape
+    Then the properties panel hugs the left edge of the canvas
+
   Scenario: Cancelling a move
     Given I am moving the toolbar
     When I press Escape

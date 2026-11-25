@@ -8,6 +8,7 @@ import {
 import {
   clampPosition,
   COLLAPSED_SIZE,
+  DEFAULT_LEFT,
   defaultPosition,
   dockPlacement,
   nudgePlacement,
@@ -82,6 +83,9 @@ export const useToolbarPosition = (onPointerMoved: () => void) => {
   const session = useRef<MoveSession | null>(null)
   const orientation: Orientation = preferred?.orientation ?? 'vertical'
   const isCollapsed = dragPointer !== null
+  // Uses the resting position so a drag in progress doesn't shift other UI.
+  const isOnLeftEdge =
+    orientation === 'vertical' && (preferred?.x ?? DEFAULT_LEFT) <= DEFAULT_LEFT
 
   useEffect(() => {
     const parent = element?.parentElement
@@ -265,6 +269,7 @@ export const useToolbarPosition = (onPointerMoved: () => void) => {
     position,
     orientation,
     isCollapsed,
+    isOnLeftEdge,
     isMoved: preferred !== null,
     handleProps,
     reset,

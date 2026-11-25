@@ -378,6 +378,35 @@ describe('FloatingToolbar movement', () => {
     expect(toolbar.style.transform).toBe(transform)
   })
 
+  it.each([
+    ['left', 10, 300, 'true'],
+    ['right', 790, 300, 'false'],
+    ['top', 400, 10, 'false'],
+    ['bottom', 400, 590, 'false'],
+  ])('marks whether the %s edge is the left edge', (_edge, x, y, expected) => {
+    const { handle, toolbar } = setup()
+    expect(toolbar.dataset.leftEdge).toBe('true')
+
+    dragBy(handle, x - 100, y - 100)
+    expect(toolbar.dataset.leftEdge).toBe('true')
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: x, clientY: y })
+
+    expect(toolbar.dataset.leftEdge).toBe(expected)
+  })
+
+  it('returns to the left edge state on reset', () => {
+    sessionStorage.setItem(
+      TOOLBAR_POSITION_KEY,
+      '{"x":100,"y":8,"orientation":"horizontal"}',
+    )
+    const { reset, toolbar } = setup()
+    expect(toolbar.dataset.leftEdge).toBe('false')
+
+    fireEvent.click(reset)
+
+    expect(toolbar.dataset.leftEdge).toBe('true')
+  })
+
   it('does not collapse or move on a plain handle click', () => {
     const { handle, toolbar } = setup()
 

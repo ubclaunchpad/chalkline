@@ -106,6 +106,7 @@ export function FloatingToolbar({
     position,
     orientation,
     isCollapsed,
+    isOnLeftEdge,
     isMoved,
     handleProps,
     reset,
@@ -171,6 +172,7 @@ export function FloatingToolbar({
       aria-label="Board tools"
       aria-orientation={orientation}
       data-collapsed={isCollapsed}
+      data-left-edge={isOnLeftEdge}
       className={`floating-toolbar absolute top-0 left-0 z-10 flex rounded-xl border border-border bg-surface-raised p-1 shadow-lg ${
         position ? '' : 'invisible'
       }`}

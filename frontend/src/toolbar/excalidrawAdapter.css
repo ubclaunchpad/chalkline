@@ -9,7 +9,8 @@
   display: none;
 }
 
-/* Keep shape properties clear of the toolbar's default position. */
-.excalidraw .App-menu__left {
+/* Keep shape properties clear of a toolbar on the left edge. Elsewhere, they
+   hug the left edge. */
+:has(> .floating-toolbar[data-left-edge='true']) .excalidraw .App-menu__left {
   margin-left: 56px;
 }
