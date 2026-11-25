@@ -76,6 +76,9 @@ func TestPrepareMessage(t *testing.T) {
 		{name: "null type", body: `{"type":null}`, code: codeInvalidMessage},
 		{name: "numeric type", body: `{"type":1}`, code: codeInvalidMessage},
 		{name: "unsupported type", body: `{"type":"welcome"}`, code: codeInvalidMessage},
+		{name: "browser leave", body: `{"type":"leave","clientId":"c_other"}`, code: codeInvalidMessage},
+		{name: "browser participants", body: `{"type":"participants","clientIds":[]}`, code: codeInvalidMessage},
+		{name: "browser snapshot", body: `{"type":"snapshot","elements":[]}`, code: codeInvalidMessage},
 		{name: "case sensitive", body: `{"type":"Change"}`, code: codeInvalidMessage},
 		{name: "trailing JSON", body: `{"type":"change"}{}`, code: codeInvalidMessage},
 		{name: "invalid UTF-8", body: "{\"type\":\"change\",\"x\":\"\xff\"}", code: codeInvalidMessage},
@@ -249,7 +252,8 @@ func paddedChange(size int) string {
 func TestRejectedMessagesKeepRoomWorking(t *testing.T) {
 	_, url, _ := startServer(t)
 	alice, aliceID := connect(t, url+"a")
-	bob, _ := connect(t, url+"a")
+	bob, bobID := connect(t, url+"a")
+	expectParticipants(t, alice, aliceID, bobID)
 	for _, tt := range []struct {
 		name, body, code, reason string
 		kind                     websocket.MessageType

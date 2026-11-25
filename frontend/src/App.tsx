@@ -3,14 +3,16 @@ import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
 import { DEFAULT_THEME } from './design/theme'
-import { CollaboratorList } from './presence/CollaboratorList'
+import { BoardLayout } from './layout/BoardLayout'
+import { TopBar } from './layout/TopBar'
 import { loadIdentity, saveIdentity } from './presence/identity'
 import { NameDialog } from './presence/NameDialog'
+import { ParticipantAvatars } from './presence/ParticipantAvatars'
 import './presence/presence.css'
 import { usePresence } from './presence/usePresence'
 import { BoardConnectionProvider } from './realtime/BoardConnectionProvider'
 import { ConnectionStatus } from './realtime/ConnectionStatus'
-import { useBoardConnection } from './realtime/useBoardConnection'
+import { getBoardId, useBoardConnection } from './realtime/useBoardConnection'
 import { useSceneSync } from './realtime/useSceneSync'
 import { Sidebar } from './sidebar/Sidebar'
 import { useCanvasDropHandlers } from './sidebar/useCanvasDrop'
@@ -23,7 +25,8 @@ function BoardCanvas() {
     useState<ExcalidrawImperativeAPI | null>(null)
   const [identity, setIdentity] = useState(loadIdentity)
   const [isReturningVisitor] = useState(identity !== null)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [componentsOpen, setComponentsOpen] = useState(true)
+  const componentsButtonRef = useRef<HTMLButtonElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const focusCanvas = useCallback(() => {
     focusBoard(canvasRef.current)
@@ -39,8 +42,8 @@ function BoardCanvas() {
       focusCanvas()
     }
   }, [excalidrawApi, focusCanvas, isReturningVisitor])
-  const toggleSidebar = () => {
-    setSidebarCollapsed((value) => !value)
+  const toggleComponents = () => {
+    setComponentsOpen((open) => !open)
   }
   const handleSceneChange = useSceneSync(connection, excalidrawApi)
   const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
@@ -50,16 +53,38 @@ function BoardCanvas() {
     excalidrawApi,
   )
 
+  const closeComponents = () => {
+    setComponentsOpen(false)
+    componentsButtonRef.current?.focus()
+  }
+
   return (
-    <main className="flex h-screen w-screen bg-canvas font-sans text-body">
-      <Sidebar
-        excalidrawAPI={excalidrawApi}
-        collapsed={sidebarCollapsed}
-        onToggle={toggleSidebar}
-      />
+    <BoardLayout
+      topBar={
+        <TopBar
+          boardId={getBoardId(window.location.search)}
+          componentsOpen={componentsOpen}
+          onToggleComponents={toggleComponents}
+          componentsButtonRef={componentsButtonRef}
+          status={<ConnectionStatus />}
+          participants={
+            identity ? (
+              <ParticipantAvatars
+                identity={identity}
+                participants={participants}
+              />
+            ) : null
+          }
+        />
+      }
+      leftPanel={
+        <Sidebar excalidrawAPI={excalidrawApi} onClose={closeComponents} />
+      }
+      leftPanelOpen={componentsOpen}
+    >
       <div
         ref={canvasRef}
-        className="relative flex-1"
+        className="relative h-full w-full"
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
@@ -67,22 +92,13 @@ function BoardCanvas() {
           excalidrawAPI={setExcalidrawApi}
           onChange={handleSceneChange}
           onPointerUpdate={onPointerUpdate}
-          renderTopRightUI={() =>
-            identity && (
-              <CollaboratorList
-                identity={identity}
-                participants={participants}
-              />
-            )
-          }
           theme={DEFAULT_THEME}
         />
         <FloatingToolbar
           api={excalidrawApi}
-          componentsOpen={!sidebarCollapsed}
-          onToggleComponents={toggleSidebar}
+          componentsOpen={componentsOpen}
+          onToggleComponents={toggleComponents}
         />
-        <ConnectionStatus />
       </div>
       {!identity && (
         <NameDialog
@@ -93,7 +109,7 @@ function BoardCanvas() {
           }}
         />
       )}
-    </main>
+    </BoardLayout>
   )
 }
 

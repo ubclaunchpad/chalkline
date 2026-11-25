@@ -17,7 +17,7 @@ import {
   type Icon,
 } from '@tabler/icons-react'
 import { ChalklineIcon } from '../design/Icon'
-import { COMPONENT_LIST_ID } from '../sidebar/catalog'
+import { COMPONENT_SIDEBAR_ID } from '../sidebar/catalog'
 import {
   finishOpenPath,
   focusExcalidraw,
@@ -236,7 +236,7 @@ export function FloatingToolbar({
           type="button"
           aria-label="Components"
           aria-expanded={componentsOpen}
-          aria-controls={COMPONENT_LIST_ID}
+          aria-controls={COMPONENT_SIDEBAR_ID}
           aria-describedby={`${baseId}-components`}
           className={controlClass}
           onClick={(event) => {

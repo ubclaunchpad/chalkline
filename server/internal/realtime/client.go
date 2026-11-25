@@ -3,6 +3,7 @@ package realtime
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -17,6 +18,9 @@ const (
 type message struct {
 	kind websocket.MessageType
 	data []byte
+	// rosterMarker stands in for the client's newest roster. The writer replaces
+	// it with whatever roster is in the client's slot when it reaches the marker.
+	rosterMarker bool
 }
 
 // Client represents one browser tab's active WebSocket connection.
@@ -25,6 +29,13 @@ type Client struct {
 	conn     *websocket.Conn // Used by this client's read and write loops.
 	outgoing chan message    // Messages queued for this browser, not received from it.
 	cancel   context.CancelFunc
+
+	// Only the newest roster matters, so at most one roster marker waits in
+	// outgoing. Without this, a burst of departures queues one roster per
+	// departure and overflows healthy clients.
+	rosterMu      sync.Mutex
+	roster        message // Newest roster for this client, guarded by rosterMu.
+	rosterPending bool    // A marker is in outgoing and not yet resolved.
 }
 
 func newClient(id string, conn *websocket.Conn, cancel context.CancelFunc) *Client {
@@ -97,6 +108,7 @@ func (c *Client) writeLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case msg := <-c.outgoing:
+			msg = c.resolve(msg)
 			writeCtx, cancel := context.WithTimeout(ctx, writeTimeout)
 			err := c.conn.Write(writeCtx, msg.kind, msg.data)
 			cancel()
@@ -105,6 +117,34 @@ func (c *Client) writeLoop(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// enqueueRoster stores msg as the client's newest roster and queues a marker
+// only if none is waiting. Callers hold the room lock, so rosters are stored in
+// membership order and the last roster the writer sends matches the room.
+func (c *Client) enqueueRoster(msg message) {
+	c.rosterMu.Lock()
+	c.roster = msg
+	pending := c.rosterPending
+	c.rosterPending = true
+	c.rosterMu.Unlock()
+	if !pending {
+		c.enqueue(message{rosterMarker: true})
+	}
+}
+
+// resolve turns a roster marker into the newest stored roster. Clearing the
+// pending flag in the same critical section as reading the slot matters: if the
+// flag were cleared after the read, a roster stored in between would find a
+// marker "pending", queue none, and never be sent.
+func (c *Client) resolve(msg message) message {
+	if !msg.rosterMarker {
+		return msg
+	}
+	c.rosterMu.Lock()
+	defer c.rosterMu.Unlock()
+	c.rosterPending = false
+	return c.roster
 }
 
 func (c *Client) enqueue(msg message) {

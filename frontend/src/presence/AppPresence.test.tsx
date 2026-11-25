@@ -83,7 +83,7 @@ describe('App presence integration', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Join board' }))
 
-    expect(screen.getByText('First visitor (you)')).toBeTruthy()
+    expect(screen.getByLabelText('First visitor (you)')).toBeTruthy()
     expect(localStorage.getItem('chalkline.displayName')).toBe('First visitor')
   })
 
@@ -146,7 +146,7 @@ describe('App presence integration', () => {
         clientId: 'self',
       })
     })
-    expect(screen.getByText('Local person (you)')).toBeTruthy()
+    expect(screen.getByLabelText('Local person (you)')).toBeTruthy()
 
     act(() => {
       FakeWebSocket.instances[0].serverSends({
@@ -159,7 +159,7 @@ describe('App presence integration', () => {
       })
     })
 
-    expect(screen.getByText('Remote person')).toBeTruthy()
+    expect(screen.getByLabelText('Remote person')).toBeTruthy()
     expect(FakeWebSocket.instances).toHaveLength(1)
     expect(updateScene).toHaveBeenCalled()
 

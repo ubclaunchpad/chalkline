@@ -12,7 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ubclaunchpad/chalkline/server/internal/httpapi"
+	"github.com/ubclaunchpad/chalkline/server/internal/realtime"
+	"github.com/ubclaunchpad/chalkline/server/internal/store"
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -49,13 +52,45 @@ func run(ctx context.Context, getenv func(string) string) error {
 		return err
 	}
 
+	databaseURL := getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return fmt.Errorf("DATABASE_URL is required")
+	}
+	dbCtx, dbCancel := context.WithTimeout(ctx, 5*time.Second)
+	pool, err := pgxpool.New(dbCtx, databaseURL)
+	if err != nil {
+		dbCancel()
+		return fmt.Errorf("invalid database configuration")
+	}
+	defer pool.Close()
+	err = pool.Ping(dbCtx)
+	dbCancel()
+	if err != nil {
+		return fmt.Errorf("database unavailable")
+	}
+	persistence := realtime.DefaultPersistenceConfig()
+	for name, target := range map[string]*time.Duration{"PERSIST_FLUSH_INTERVAL": &persistence.FlushInterval, "PERSIST_CHECKPOINT_INTERVAL": &persistence.CheckpointInterval} {
+		if raw := getenv(name); raw != "" {
+			d, e := time.ParseDuration(raw)
+			if e != nil || d <= 0 {
+				return fmt.Errorf("invalid %s", name)
+			}
+			*target = d
+		}
+	}
+	hub, err := realtime.NewPersistentHub(store.NewPostgres(pool), persistence)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		drain, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		_ = hub.Shutdown(drain)
+	}()
 	server := &http.Server{
 		Addr:              ":" + cfg.port,
-		Handler:           httpapi.NewHandler(),
+		Handler:           httpapi.NewHandler(hub),
 		ReadHeaderTimeout: 5 * time.Second,
-		// HTTP Shutdown does not close upgraded WebSockets. Propagate shutdown
-		// cancellation into request contexts so their read/write loops also stop.
-		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 
 	serveErr := make(chan error, 1)
@@ -73,7 +108,11 @@ func run(ctx context.Context, getenv func(string) string) error {
 	slog.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	hubDone := make(chan error, 1)
+	go func() { hubDone <- hub.Shutdown(shutdownCtx) }()
+	httpErr := server.Shutdown(shutdownCtx)
+	hubErr := <-hubDone
+	if err := errors.Join(httpErr, hubErr); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
 	}
 	if err := <-serveErr; !errors.Is(err, http.ErrServerClosed) {

@@ -1,11 +1,15 @@
 package realtime
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 type Room struct {
-	mu      sync.Mutex
-	clients map[string]*Client // client ID → connected client
-	scene   *scene             // The room's copy of its board, guarded by mu.
+	persistence *roomPersistence
+	mu          sync.Mutex
+	clients     map[string]*Client // client ID → connected client
+	scene       *scene             // The room's copy of its board, guarded by mu.
 }
 
 func (r *Room) broadcast(sender *Client, msg message) {
@@ -25,6 +29,28 @@ func (r *Room) broadcastLocked(sender *Client, msg message) {
 	}
 }
 
+// broadcastRosterLocked requires r.mu. Each client keeps at most one roster
+// waiting, so a burst of joins or departures cannot fill healthy queues.
+func (r *Room) broadcastRosterLocked() {
+	msg := r.participantsLocked()
+	for _, client := range r.clients {
+		client.enqueueRoster(msg)
+	}
+}
+
+// participantsLocked requires r.mu. Capturing the roster under the same lock
+// that queues it means every client receives rosters in membership order, so
+// the last one each client gets matches the room.
+func (r *Room) participantsLocked() message {
+	ids := make([]string, 0, len(r.clients))
+	for id := range r.clients {
+		ids = append(ids, id)
+	}
+	// Clients treat the list as a set; sorting only makes the bytes predictable.
+	slices.Sort(ids)
+	return participantsMessage(ids)
+}
+
 // applyChange merges a change into the room's board. Winners go to everyone
 // else, and the sender gets the stored copy of anything it lost. Holding mu
 // for the whole step keeps the board and the order of queued messages in
@@ -32,10 +58,37 @@ func (r *Room) broadcastLocked(sender *Client, msg message) {
 func (r *Room) applyChange(sender *Client, p prepared) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	winners, corrections, perr := r.scene.apply(p.elements)
+	if r.persistence != nil && (r.persistence.paused || r.persistence.closing) {
+		sender.enqueue(errorMessage(persistenceError(), p.batchID))
+		return
+	}
+	// Stage on a shallow copy: stored element bytes are immutable.
+	candidate := r.scene
+	if r.persistence != nil {
+		candidate = newScene()
+		candidate.rawBytes = r.scene.rawBytes
+		for id, e := range r.scene.elements {
+			candidate.elements[id] = e
+		}
+	}
+	winners, corrections, perr := candidate.apply(p.elements)
 	if perr != nil {
 		sender.enqueue(errorMessage(perr, p.batchID))
 		return
+	}
+	if len(winners) > 0 && r.persistence != nil {
+		raw := joinElements("[", winners, "]")
+		q := r.persistence
+		if len(q.pending) >= q.limits.MaxPendingBatches || q.pendingBytes+len(raw) > q.limits.MaxPendingBytes {
+			q.paused = len(q.pending) > 0
+			r.signalPersistence()
+			r.broadcastLocked(sender, errorMessage(persistenceError(), ""))
+			sender.enqueue(errorMessage(persistenceError(), p.batchID))
+			return
+		}
+		q.pending = append(q.pending, raw)
+		q.pendingBytes += len(raw)
+		r.scene = candidate
 	}
 	if len(winners) > 0 {
 		// Every field was decoded from valid JSON, so encoding cannot fail.
