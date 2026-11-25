@@ -214,6 +214,127 @@ export const CATALOG = {
       },
     },
   },
+  serverless_function: {
+    label: 'Serverless function',
+    description:
+      'Runs code on demand without managing servers, such as a Lambda or edge function.',
+    settings: {
+      provider: {
+        type: 'choice',
+        label: 'Provider',
+        default: 'AWS Lambda',
+        options: [
+          'AWS Lambda',
+          'Google Cloud Functions',
+          'Azure Functions',
+          'Cloudflare Workers',
+        ],
+      },
+      trigger: {
+        type: 'choice',
+        label: 'Trigger',
+        default: 'HTTP',
+        options: ['HTTP', 'Queue', 'Schedule', 'Event'],
+      },
+    },
+  },
+  pubsub: {
+    label: 'Pub/sub',
+    description: 'Fans each published event out to many subscribers.',
+    settings: {
+      engine: {
+        type: 'choice',
+        label: 'Engine',
+        default: 'Kafka',
+        options: ['Kafka', 'Amazon SNS', 'Google Pub/Sub', 'Redis'],
+      },
+      delivery: {
+        type: 'choice',
+        label: 'Delivery',
+        default: 'At-least-once',
+        options: ['At-least-once', 'At-most-once', 'Exactly-once'],
+      },
+    },
+  },
+  auth: {
+    label: 'Auth',
+    description: 'Signs users in and issues the tokens other components trust.',
+    settings: {
+      protocol: {
+        type: 'choice',
+        label: 'Protocol',
+        default: 'OpenID Connect',
+        options: ['OpenID Connect', 'OAuth 2.0', 'SAML', 'Password'],
+      },
+      session: {
+        type: 'choice',
+        label: 'Session',
+        default: 'JWT',
+        options: ['JWT', 'Session cookie'],
+      },
+    },
+  },
+  external_service: {
+    label: 'External service',
+    description:
+      'A third-party or managed service your system calls, such as Stripe or SendGrid.',
+    settings: {
+      category: {
+        type: 'choice',
+        label: 'Category',
+        default: 'Other',
+        options: ['Payments', 'Email', 'SMS', 'Maps', 'AI', 'Other'],
+      },
+      integration: {
+        type: 'choice',
+        label: 'Integration',
+        default: 'API calls',
+        options: ['API calls', 'Webhooks', 'Both'],
+      },
+    },
+  },
+  scheduler: {
+    label: 'Scheduler',
+    description:
+      'Starts jobs on a schedule, such as nightly reports or cleanups.',
+    settings: {
+      engine: {
+        type: 'choice',
+        label: 'Engine',
+        default: 'cron',
+        options: [
+          'cron',
+          'Kubernetes CronJob',
+          'Amazon EventBridge',
+          'Celery Beat',
+        ],
+      },
+      schedule: {
+        type: 'text',
+        label: 'Schedule (cron)',
+        default: '0 * * * *',
+      },
+    },
+  },
+  monitoring: {
+    label: 'Monitoring',
+    description:
+      'Collects metrics and logs and raises alerts when something breaks.',
+    settings: {
+      tool: {
+        type: 'choice',
+        label: 'Tool',
+        default: 'Prometheus',
+        options: ['Prometheus', 'Datadog', 'ELK stack', 'Amazon CloudWatch'],
+      },
+      retentionDays: {
+        type: 'number',
+        label: 'Retention (days)',
+        default: 15,
+        min: 1,
+      },
+    },
+  },
 } as const satisfies Readonly<Record<string, KindDefinition>>
 
 export type ComponentKind = keyof typeof CATALOG

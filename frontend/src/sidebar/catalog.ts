@@ -31,6 +31,12 @@ const KIND_COLORS: Readonly<Record<ComponentKind, string>> = {
   cache: '#e64980',
   queue: '#f76707',
   object_storage: '#37b24d',
+  serverless_function: '#4c6ef5',
+  pubsub: '#be4bdb',
+  auth: '#f03e3e',
+  external_service: '#74b816',
+  scheduler: '#ffd43b',
+  monitoring: '#b197fc',
 }
 
 function defaultPropsFor(kind: ComponentKind): Record<string, unknown> {
