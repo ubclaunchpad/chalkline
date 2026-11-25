@@ -32,7 +32,12 @@ describe('ConnectionStatus', () => {
   it('shows connecting before the first connection opens', () => {
     renderStatus()
 
-    expect(screen.getByRole('status').textContent).toBe('Connecting…')
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('Connecting…')
+    expect(status.querySelector('[aria-hidden="true"]')?.className).toContain(
+      'bg-warning',
+    )
+    expect(status.textContent).not.toContain('Saved')
   })
 
   it('shows connected once the connection opens', () => {
@@ -42,7 +47,11 @@ describe('ConnectionStatus', () => {
       latestSocket().serverOpens()
     })
 
-    expect(screen.getByRole('status').textContent).toBe('Connected')
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('Connected')
+    expect(status.querySelector('[aria-hidden="true"]')?.className).toContain(
+      'bg-success',
+    )
   })
 
   it('shows reconnecting after a drop until a retry opens', () => {
@@ -55,6 +64,10 @@ describe('ConnectionStatus', () => {
       latestSocket().serverDrops()
     })
     expect(screen.getByRole('status').textContent).toBe('Reconnecting…')
+    expect(
+      screen.getByRole('status').querySelector('[aria-hidden="true"]')
+        ?.className,
+    ).toContain('bg-danger')
 
     // The retry is connecting again, but the label stays "Reconnecting…".
     act(() => {
