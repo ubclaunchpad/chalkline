@@ -20,7 +20,7 @@ Open http://localhost:5299. Tests need Node 22.19 or newer (`nvm use 24`); the d
 
 1. **Home:** pick "Microservices with API gateway". Enter your name.
 2. **Configure:** click _Orders DB_. The settings panel opens; set Replicas to 3 and watch the card update.
-3. **Understand:** open **Review** (single points of failure, missing caches, with why and what to try). Select _Web app_ and press **▶ Send request** to watch a request travel through the system.
+3. **Understand:** open **Review** (single points of failure, missing caches, with why and what to try).
 4. **Check:** add a Cache from the components panel without connecting it. **Checks** shows "Cache has no connections" and outlines it.
 5. **Collaborate:** **Share** → copy the view link → open it in another window. It sees everything live, including a **Comment** you add in the first window, but cannot change anything (the server refuses).
 6. **Generate:** on a new board, open **Assistant**, describe a system in a sentence, preview, **Add to board**. Try **Tidy up** and **Explain this diagram**.
@@ -33,7 +33,7 @@ Open http://localhost:5299. Tests need Node 22.19 or newer (`nvm use 24`); the d
 | Shell               | Home with recent boards and templates; navy canvas with grid; floating toolbar; zoom; empty-board hint; dark, searchable components panel; rename board |
 | Elements            | Dark cards (icon, name, detail line from settings); call / async / two-way arrows with labels; groups (VPC, cluster...); sticky notes                   |
 | Inspector           | Settings for components, connections and groups; notes; colour and size; multi-select delete                                                            |
-| Understanding       | 9 live checks with outlines; request-flow animation; architecture review with score card                                                                |
+| Understanding       | 9 live checks with outlines; architecture review with score card                                                                                        |
 | Generate            | 5 templates; draft from a sentence; tidy up (auto-layout); explain; suggested next steps                                                                |
 | Collaboration       | Comments pinned to components; selection and cursor presence; share links with **server-enforced view-only**                                            |
 | Export and practice | PNG, SVG, JSON (open and save), Mermaid, Terraform sketch, copy link; 4 practice exercises graded from the diagram                                      |

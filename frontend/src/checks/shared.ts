@@ -1,4 +1,4 @@
-// Small helpers shared by checks, request flow and review (all area D).
+// Small helpers shared by checks and review.
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { CaptureUpdateAction } from '@excalidraw/excalidraw'
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types'
@@ -7,7 +7,6 @@ import type {
   ExcalidrawImperativeAPI,
 } from '@excalidraw/excalidraw/types'
 import { useBoard, useScene } from '../app/context'
-import type { Point } from '../flow/flowHops'
 import { deriveGraph } from '../graph/deriveGraph'
 
 const SETTLE_MS = 200
@@ -72,6 +71,9 @@ export function toBoardBox(
     height: box.height * zoom,
   }
 }
+
+/** A point in scene coordinates. */
+export type Point = readonly [number, number]
 
 /** An arrow's or line's points (offsets from its x and y), if it has any. */
 export function pointsOf(element: ExcalidrawElement): readonly Point[] {

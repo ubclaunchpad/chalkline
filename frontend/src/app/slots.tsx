@@ -9,7 +9,6 @@ import {
 } from '../collab'
 import { ElementEffects } from '../elements'
 import { ExportMenu } from '../export'
-import { FlowLayer } from '../flow'
 import { PracticeButton, PracticePanel } from '../practice'
 import { Inspector } from '../properties/Inspector'
 import { ReviewButton, ReviewPanel } from '../review'
@@ -54,7 +53,6 @@ export function CanvasLayers() {
       <ElementEffects />
       <ShapeActionsGuard />
       <ChecksLayer />
-      <FlowLayer />
       <CommentPins />
       <EmptyState />
       <FloatingToolbar />

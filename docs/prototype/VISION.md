@@ -16,7 +16,7 @@ Students and engineers who design systems together: team projects, system-design
 4. **Connect and group:** arrows carry meaning: solid for a call, dashed for async, two heads for two-way, with an optional label like `gRPC` or `orders.created`. Groups draw VPCs, clusters and regions as dashed boxes.
 5. **Configure:** click a component or arrow and a panel slides in on the right with its settings (engine, replicas, port, protocol...).
 6. **Collaborate:** live cursors with name tags, selection outlines in each person's colour, avatars, sticky notes, comment threads pinned to components, and share links that are either edit or view-only (enforced by the server).
-7. **Understand:** Checks flag mistakes as you draw. An architecture review explains weak points (single points of failure, missing caches, unbounded queues) with plain-language reasons. Press ▶ on a component to watch a request travel through the system.
+7. **Understand:** Checks flag mistakes as you draw. An architecture review explains weak points (single points of failure, missing caches, unbounded queues) with plain-language reasons.
 8. **Practise:** system-design exercises ("Design a URL shortener") with requirements, a timer, and a checklist graded from the diagram.
 9. **Ship it:** export PNG, SVG, JSON, Mermaid (paste into a GitHub README), and an inspectable Terraform sketch for the components that map cleanly.
 
@@ -35,7 +35,7 @@ Accounts and sign-in, billing, real infrastructure deployment, codebase sync, mo
 | A. Shell and layout    | `src/shell/`, `src/layout/`, `src/sidebar/Sidebar.tsx`, `src/index.css`, `src/home/`                       | Home page, top bar, floating toolbar, components panel, canvas look, empty state, board name |
 | B. Elements            | `src/catalog/`, `src/sidebar/catalog.ts`, `src/sidebar/createComponent.ts`, `src/elements/`, `src/design/` | Cards, connection kinds and labels, groups, sticky notes, catalog                            |
 | C. Inspector           | `src/properties/`                                                                                          | Settings panel for components, connections and groups; colour and size                       |
-| D. Understanding       | `src/checks/`, `src/flow/`, `src/review/`                                                                  | Checks, request flow, architecture review                                                    |
+| D. Understanding       | `src/checks/`, `src/review/`                                                                               | Checks, architecture review                                                                  |
 | E. Generate            | `src/templates/`, `src/generate/`, `src/assistant/`                                                        | Template gallery, draft-from-a-sentence, explain, auto-layout                                |
 | F. Collaboration       | `src/collab/`, `src/presence/`, `src/realtime/`, `server/`                                                 | Comments, selection presence, share dialog, view-only enforced by the server                 |
 | G. Export and practice | `src/export/`, `src/practice/`                                                                             | Export menu (PNG, SVG, JSON, Mermaid, Terraform), practice exercises                         |
