@@ -1,3 +1,5 @@
 .DS_Store
 /server/server
 .env
+# Filled-in server settings; only deploy/*.example is tracked.
+deploy/*.env
