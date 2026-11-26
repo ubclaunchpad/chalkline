@@ -86,11 +86,17 @@ const setup = (api: ToolbarApi | null = fakeApi().api) => {
     parent,
     toolbar,
     handle: screen.getByRole('button', { name: 'Move toolbar' }),
-    reset: screen.getByRole<HTMLButtonElement>('button', {
-      name: 'Reset toolbar position',
-    }),
     onToggleComponents,
   }
+}
+
+const resetButton = () =>
+  screen.queryByRole('button', { name: 'Reset toolbar position' })
+
+const clickReset = () => {
+  const reset = resetButton()
+  if (!reset) throw new Error('Reset toolbar position is not shown')
+  fireEvent.click(reset)
 }
 
 const controls = (toolbar: HTMLElement) =>
@@ -303,21 +309,72 @@ describe('FloatingToolbar arrow completion', () => {
 })
 
 describe('FloatingToolbar movement', () => {
-  it('places the handle between Components and Reset', () => {
-    const { toolbar } = setup()
-
-    const names = [...toolbar.querySelectorAll('button')].map((button) =>
+  const buttonNames = (toolbar: HTMLElement) =>
+    [...toolbar.querySelectorAll('button')].map((button) =>
       button.getAttribute('aria-label'),
     )
 
-    expect(names.slice(-3)).toEqual([
+  it('ends with the move handle until the toolbar moves', () => {
+    const { handle, toolbar } = setup()
+
+    expect(buttonNames(toolbar).slice(-2)).toEqual([
+      'Components',
+      'Move toolbar',
+    ])
+    expect(resetButton()).toBeNull()
+    // A 24px target, plus space so the grip sits as far from the toolbar's
+    // edge as it does from the Components icon.
+    expect(controls(toolbar).style.gridTemplateRows).toBe(
+      'repeat(6, 36px) 32px',
+    )
+    expect(handle.classList.contains('pb-2')).toBe(true)
+  })
+
+  it('drops the end space once Reset follows the grip', () => {
+    const { handle } = setup()
+    handle.focus()
+
+    fireEvent.keyDown(handle, { key: 'ArrowDown' })
+
+    expect(resetButton()).not.toBeNull()
+    expect(handle.classList.contains('pb-2')).toBe(false)
+  })
+
+  it('adds Reset after the handle once the toolbar moves', () => {
+    sessionStorage.setItem(TOOLBAR_POSITION_KEY, '{"x":100,"y":200}')
+    const { toolbar } = setup()
+
+    expect(buttonNames(toolbar).slice(-3)).toEqual([
       'Components',
       'Move toolbar',
       'Reset toolbar position',
     ])
     expect(controls(toolbar).style.gridTemplateRows).toBe(
-      'repeat(6, 36px) 12px 36px',
+      'repeat(6, 36px) 24px 36px',
     )
+  })
+
+  it('turns the grip to match the toolbar orientation', () => {
+    const { handle } = setup()
+    expect(handle.querySelector('.tabler-icon-grip-horizontal')).not.toBeNull()
+
+    dragBy(handle, 300, -90)
+    expect(handle.querySelector('svg')).toBeNull()
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 400, clientY: 10 })
+
+    expect(handle.querySelector('.tabler-icon-grip-vertical')).not.toBeNull()
+  })
+
+  it('labels the grip on hover, except while dragging', () => {
+    const { handle } = setup()
+    const label = () => handle.querySelector('[role="tooltip"]')
+    expect(label()?.textContent).toBe('Move toolbar')
+
+    dragBy(handle, 50, 20)
+    expect(label()).toBeNull()
+
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 150, clientY: 120 })
+    expect(label()?.textContent).toBe('Move toolbar')
   })
 
   it('starts near the left edge', () => {
@@ -399,10 +456,10 @@ describe('FloatingToolbar movement', () => {
       TOOLBAR_POSITION_KEY,
       '{"x":100,"y":8,"orientation":"horizontal"}',
     )
-    const { reset, toolbar } = setup()
+    const { toolbar } = setup()
     expect(toolbar.dataset.leftEdge).toBe('false')
 
-    fireEvent.click(reset)
+    clickReset()
 
     expect(toolbar.dataset.leftEdge).toBe('true')
   })
@@ -454,10 +511,10 @@ describe('FloatingToolbar movement', () => {
       TOOLBAR_POSITION_KEY,
       '{"x":100,"y":8,"orientation":"horizontal"}',
     )
-    const { reset, toolbar } = setup()
+    const { toolbar } = setup()
     expect(toolbar.getAttribute('aria-orientation')).toBe('horizontal')
 
-    fireEvent.click(reset)
+    clickReset()
 
     expect(toolbar.getAttribute('aria-orientation')).toBe('vertical')
   })
@@ -522,18 +579,29 @@ describe('FloatingToolbar movement', () => {
   })
 
   it('resets to the default and clears the saved position', () => {
-    const { handle, reset, toolbar } = setup()
-    expect(reset.disabled).toBe(true)
+    const { handle, toolbar } = setup()
+    expect(resetButton()).toBeNull()
 
     dragBy(handle, 50, 20)
+    expect(resetButton()).toBeNull()
     fireEvent.pointerUp(handle, { pointerId: 1, clientX: 150, clientY: 120 })
-    expect(reset.disabled).toBe(false)
+    expect(resetButton()).not.toBeNull()
 
-    fireEvent.click(reset)
+    clickReset()
 
     expect(toolbar.style.transform).toBe(DEFAULT_TRANSFORM)
     expect(sessionStorage.getItem(TOOLBAR_POSITION_KEY)).toBeNull()
-    expect(reset.disabled).toBe(true)
+    expect(resetButton()).toBeNull()
+    expect(document.activeElement).toBe(handle)
+  })
+
+  it('shows Reset after a keyboard move', () => {
+    const { handle } = setup()
+    handle.focus()
+
+    fireEvent.keyDown(handle, { key: 'ArrowDown' })
+
+    expect(resetButton()).not.toBeNull()
   })
 
   it('re-clamps after resize and returns when space comes back', () => {
@@ -558,12 +626,12 @@ describe('FloatingToolbar movement', () => {
 
   it('does not select a tool while moving', () => {
     const { api, setActiveTool } = fakeApi()
-    const { handle, reset } = setup(api)
+    const { handle } = setup(api)
 
     dragBy(handle, 50, 20)
     fireEvent.pointerUp(handle, { pointerId: 1, clientX: 150, clientY: 120 })
     fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    fireEvent.click(reset)
+    clickReset()
 
     // The toolbar's API has no scene writer, and moving selects no tool.
     expect(setActiveTool).not.toHaveBeenCalled()

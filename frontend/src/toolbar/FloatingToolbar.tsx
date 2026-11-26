@@ -8,6 +8,8 @@ import {
 import {
   IconArrowUpRight,
   IconComponents,
+  IconGripHorizontal,
+  IconGripVertical,
   IconHandStop,
   IconPointer,
   IconRestore,
@@ -45,15 +47,19 @@ const TOOLS: readonly ToolDefinition[] = [
   { type: 'text', label: 'Text', shortcut: 'T', icon: IconTypography },
 ]
 
-// Tools, components, the move handle, and reset.
-const CONTROL_COUNT = TOOLS.length + 3
 const CONTROL_SIZE = 36
-const HANDLE_LENGTH = 12
+/** The grip's track meets the 24px minimum target size from WCAG 2.2. */
+const HANDLE_LENGTH = 24
+/**
+ * Icons sit 8px inside their buttons. When the grip is last, the same 8px
+ * after it keeps the toolbar's edge as far from the grip as its neighbour icon.
+ */
+const HANDLE_END_SPACE = 8
 const CONTROL_GAP = 4
 const TOOLBAR_PADDING = 4
 
 const CONTROL_CLASS =
-  'group relative inline-flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-overlay hover:text-ink focus-visible:outline-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent aria-pressed:bg-surface-selected aria-pressed:text-accent aria-expanded:text-accent'
+  'group relative inline-flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-overlay hover:text-ink focus-visible:outline-2 focus-visible:outline-focus-ring aria-pressed:bg-surface-selected aria-pressed:text-accent aria-expanded:text-accent'
 
 type TooltipSide = 'left' | 'right' | 'top' | 'bottom'
 
@@ -124,6 +130,8 @@ export function FloatingToolbar({
     [toolbarRef],
   )
 
+  // Tools, components, the move handle, and reset once the toolbar has moved.
+  const controlCount = TOOLS.length + (isMoved ? 3 : 2)
   const available = layout
     ? isVertical
       ? layout.bounds.height
@@ -132,17 +140,21 @@ export function FloatingToolbar({
   const fitLines = (length: number) =>
     linesThatFit(
       length,
-      CONTROL_COUNT,
+      controlCount,
       CONTROL_SIZE,
       CONTROL_GAP,
       TOOLBAR_PADDING,
     )
-  // The handle is a thin track in a single line. Once controls wrap, it shares
-  // a track with a button, so it takes a full cell.
+  // In a single line, the grip's track is shorter than a button. Once controls
+  // wrap, it shares a track with a button, so it takes a full cell.
+  const handleLength = HANDLE_LENGTH + (isMoved ? 0 : HANDLE_END_SPACE)
   const fitsOneLine =
-    fitLines(available + CONTROL_SIZE - HANDLE_LENGTH) === CONTROL_COUNT
+    fitLines(available + CONTROL_SIZE - handleLength) === controlCount
+  const handleIsLast = fitsOneLine && !isMoved
   const gridTemplate = fitsOneLine
-    ? `repeat(${String(TOOLS.length + 1)}, ${String(CONTROL_SIZE)}px) ${String(HANDLE_LENGTH)}px ${String(CONTROL_SIZE)}px`
+    ? `repeat(${String(TOOLS.length + 1)}, ${String(CONTROL_SIZE)}px) ${String(handleLength)}px${
+        isMoved ? ` ${String(CONTROL_SIZE)}px` : ''
+      }`
     : `repeat(${String(fitLines(available))}, ${String(CONTROL_SIZE)}px)`
   const controlClass = isCollapsed ? 'hidden' : CONTROL_CLASS
 
@@ -258,39 +270,47 @@ export function FloatingToolbar({
           className={`group flex touch-none items-center justify-center rounded-sm text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-focus-ring ${
             isCollapsed
               ? 'absolute inset-0 z-10 cursor-grabbing'
-              : 'size-full cursor-grab'
+              : // Only the unmoved, vertical toolbar ends with the grip.
+                `relative size-full cursor-grab ${handleIsLast ? 'pb-2' : ''}`
           }`}
           {...handleProps}
         >
-          <span
-            aria-hidden="true"
-            className={`rounded-full bg-current opacity-70 ${
-              isCollapsed ? 'hidden' : isVertical ? 'h-0.5 w-6' : 'h-6 w-0.5'
-            }`}
-          />
+          {!isCollapsed && (
+            <>
+              <ChalklineIcon
+                icon={isVertical ? IconGripHorizontal : IconGripVertical}
+                size={16}
+                className="shrink-0"
+              />
+              <Tooltip id={`${baseId}-move-label`} side={tooltipSide}>
+                Move toolbar
+              </Tooltip>
+            </>
+          )}
           <span id={`${baseId}-move`} className="sr-only">
             Drag or use arrow keys. Escape cancels.
           </span>
         </button>
 
-        <button
-          type="button"
-          aria-label="Reset toolbar position"
-          aria-describedby={`${baseId}-reset`}
-          disabled={!isMoved}
-          className={controlClass}
-          onClick={(event) => {
-            // The button disables itself, so keep keyboard focus on the toolbar.
-            handleRef.current?.focus()
-            reset()
-            returnPointerFocus(event)
-          }}
-        >
-          <ChalklineIcon icon={IconRestore} size={18} />
-          <Tooltip id={`${baseId}-reset`} side={tooltipSide}>
-            Reset position
-          </Tooltip>
-        </button>
+        {isMoved && (
+          <button
+            type="button"
+            aria-label="Reset toolbar position"
+            aria-describedby={`${baseId}-reset`}
+            className={controlClass}
+            onClick={(event) => {
+              // The button disappears, so keep keyboard focus on the toolbar.
+              handleRef.current?.focus()
+              reset()
+              returnPointerFocus(event)
+            }}
+          >
+            <ChalklineIcon icon={IconRestore} size={18} />
+            <Tooltip id={`${baseId}-reset`} side={tooltipSide}>
+              Reset position
+            </Tooltip>
+          </button>
+        )}
       </div>
     </div>
   )

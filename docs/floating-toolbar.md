@@ -63,7 +63,10 @@ Feature: Floating board toolbar
 
   Scenario: Finding the move handle
     When I look at the toolbar
-    Then a thin move handle sits between Components and Reset position
+    Then a dotted grip sits after Components
+    And no Reset position button is shown
+    When I hover over the grip
+    Then it is labeled "Move toolbar"
 
   Scenario: Dragging the toolbar
     Given a board with existing shapes
@@ -118,11 +121,17 @@ Feature: Floating board toolbar
     Then the toolbar returns to where the move began
     And it returns to its earlier orientation
 
+  Scenario: Reset appears after a move
+    Given the toolbar is in its default position
+    When I move it by pointer or keyboard
+    Then a Reset position button appears after the grip
+
   Scenario: Resetting the toolbar
     Given I have moved the toolbar
     When I activate Reset toolbar position
     Then the toolbar returns to its default vertical position
     And its saved position is cleared
+    And the Reset position button is hidden again
 
   Scenario: The canvas gets smaller and larger again
     Given I have moved the toolbar near the right edge
