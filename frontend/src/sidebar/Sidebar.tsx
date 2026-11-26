@@ -2,7 +2,12 @@ import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
 import { IconX } from '@tabler/icons-react'
 import { ChalklineIcon } from '../design/Icon'
 import { addComponentAtCenter } from './addComponent'
-import { catalog, COMPONENT_DRAG_MIME, type CatalogEntry } from './catalog'
+import {
+  catalog,
+  COMPONENT_DRAG_MIME,
+  COMPONENT_SIDEBAR_ID,
+  type CatalogEntry,
+} from './catalog'
 
 interface SidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null
@@ -12,7 +17,7 @@ interface SidebarProps {
 export function Sidebar({ excalidrawAPI, onClose }: SidebarProps) {
   return (
     <aside
-      id="component-sidebar"
+      id={COMPONENT_SIDEBAR_ID}
       aria-label="Components"
       onKeyDown={(event) => {
         if (event.key === 'Escape') onClose()

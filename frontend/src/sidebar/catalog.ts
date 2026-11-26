@@ -11,6 +11,9 @@ import {
 
 export type { ComponentKind }
 
+/** DOM id of the components panel, shared by the controls that toggle it. */
+export const COMPONENT_SIDEBAR_ID = 'component-sidebar'
+
 /** A sidebar entry: enough to list and place a kind on the board. */
 export interface CatalogEntry {
   kind: ComponentKind

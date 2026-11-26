@@ -20,11 +20,19 @@ vi.mock('@excalidraw/excalidraw', async () => {
     Excalidraw: ({ excalidrawAPI, renderTopRightUI }: ExcalidrawProps) => {
       useEffect(() => {
         excalidrawAPI?.({
+          getAppState: () => ({ activeTool: { type: 'selection' } }),
           getSceneElementsIncludingDeleted: () => [],
+          onChange: () => () => undefined,
+          onPointerUp: () => () => undefined,
+          setActiveTool: () => undefined,
           updateScene,
         } as unknown as ExcalidrawImperativeAPI)
       }, [excalidrawAPI])
-      return <>{renderTopRightUI?.(false, {} as never)}</>
+      return (
+        <div className="excalidraw-container" tabIndex={0}>
+          {renderTopRightUI?.(false, {} as never)}
+        </div>
+      )
     },
   }
 })
@@ -46,6 +54,13 @@ beforeEach(() => {
     },
   })
   vi.stubGlobal('WebSocket', FakeWebSocket)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe = () => undefined
+      disconnect = () => undefined
+    },
+  )
   window.history.replaceState(null, '', '/?board=presence-integration')
 })
 
@@ -70,6 +85,54 @@ describe('App presence integration', () => {
 
     expect(screen.getByLabelText('First visitor (you)')).toBeTruthy()
     expect(localStorage.getItem('chalkline.displayName')).toBe('First visitor')
+  })
+
+  it.each([
+    [
+      'joining',
+      () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Join board' }))
+      },
+    ],
+    [
+      'continuing as a guest',
+      () => {
+        const dialog = document.querySelector('dialog')
+        if (!dialog) throw new Error('name dialog is not open')
+        fireEvent(dialog, new Event('cancel', { cancelable: true }))
+      },
+    ],
+  ])('focuses the board after %s', (_name, closeDialog) => {
+    localStorage.removeItem('chalkline.displayName')
+    render(<App />)
+    expect(document.activeElement?.id).toBe('presence-name')
+
+    closeDialog()
+
+    expect(document.querySelector('dialog')).toBeNull()
+    expect(document.activeElement).toBe(
+      document.querySelector('.excalidraw-container'),
+    )
+  })
+
+  it('focuses the board on load for a returning visitor', () => {
+    render(<App />)
+
+    expect(document.querySelector('dialog')).toBeNull()
+    expect(document.activeElement).toBe(
+      document.querySelector('.excalidraw-container'),
+    )
+  })
+
+  it('does not take focus a returning visitor already moved', () => {
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+    elsewhere.focus()
+
+    render(<App />)
+
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
   })
 
   it('uses the shared board connection to render remote cursors and names', () => {

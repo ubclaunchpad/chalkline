@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
@@ -16,14 +16,35 @@ import { getBoardId, useBoardConnection } from './realtime/useBoardConnection'
 import { useSceneSync } from './realtime/useSceneSync'
 import { Sidebar } from './sidebar/Sidebar'
 import { useCanvasDropHandlers } from './sidebar/useCanvasDrop'
+import { focusBoard } from './toolbar/excalidrawAdapter'
+import { FloatingToolbar } from './toolbar/FloatingToolbar'
 
 function BoardCanvas() {
   const connection = useBoardConnection()
   const [excalidrawApi, setExcalidrawApi] =
     useState<ExcalidrawImperativeAPI | null>(null)
   const [identity, setIdentity] = useState(loadIdentity)
+  const [isReturningVisitor] = useState(identity !== null)
   const [componentsOpen, setComponentsOpen] = useState(true)
   const componentsButtonRef = useRef<HTMLButtonElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const focusCanvas = useCallback(() => {
+    focusBoard(canvasRef.current)
+  }, [])
+  useEffect(() => {
+    // Returning visitors skip the name prompt, which otherwise hands off focus.
+    // Leave focus alone if they have already moved it somewhere.
+    if (
+      excalidrawApi &&
+      isReturningVisitor &&
+      document.activeElement === document.body
+    ) {
+      focusCanvas()
+    }
+  }, [excalidrawApi, focusCanvas, isReturningVisitor])
+  const toggleComponents = () => {
+    setComponentsOpen((open) => !open)
+  }
   const handleSceneChange = useSceneSync(connection, excalidrawApi)
   const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
   const { participants, onPointerUpdate } = usePresence(
@@ -43,9 +64,7 @@ function BoardCanvas() {
         <TopBar
           boardId={getBoardId(window.location.search)}
           componentsOpen={componentsOpen}
-          onToggleComponents={() => {
-            setComponentsOpen((open) => !open)
-          }}
+          onToggleComponents={toggleComponents}
           componentsButtonRef={componentsButtonRef}
           status={<ConnectionStatus />}
           participants={
@@ -63,16 +82,27 @@ function BoardCanvas() {
       }
       leftPanelOpen={componentsOpen}
     >
-      <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
+      <div
+        ref={canvasRef}
+        className="relative h-full w-full"
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
         <Excalidraw
           excalidrawAPI={setExcalidrawApi}
           onChange={handleSceneChange}
           onPointerUpdate={onPointerUpdate}
           theme={DEFAULT_THEME}
         />
+        <FloatingToolbar
+          api={excalidrawApi}
+          componentsOpen={componentsOpen}
+          onToggleComponents={toggleComponents}
+        />
       </div>
       {!identity && (
         <NameDialog
+          onClosed={focusCanvas}
           onSubmit={(next) => {
             saveIdentity(next)
             setIdentity(next)

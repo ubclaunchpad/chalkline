@@ -4,8 +4,11 @@ import type { Identity } from './identity'
 
 export function NameDialog({
   onSubmit,
+  onClosed,
 }: {
   onSubmit: (identity: Identity) => void
+  /** Runs after the dialog closes and restores focus. */
+  onClosed?: () => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const input = useRef<HTMLInputElement>(null)
@@ -19,8 +22,9 @@ export function NameDialog({
     return () => {
       element?.close()
       if (previousFocus instanceof HTMLElement) previousFocus.focus()
+      onClosed?.()
     }
-  }, [])
+  }, [onClosed])
 
   return (
     <dialog
