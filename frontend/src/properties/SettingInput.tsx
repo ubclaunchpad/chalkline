@@ -7,10 +7,12 @@ interface SettingInputProps {
   value: string | number
   error?: string
   onCommit: (value: string | number) => void
+  // Text settings only: a multi-line box that commits when the user leaves it.
+  multiline?: boolean
 }
 
 const controlClass =
-  'w-full rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 aria-invalid:border-red-500'
+  'w-full rounded-md border border-border-strong bg-surface px-2.5 py-1.5 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring aria-invalid:border-danger disabled:opacity-60'
 
 // One labelled input for one catalog setting. The input type comes from the
 // setting, so new settings need no changes here.
@@ -20,6 +22,7 @@ export function SettingInput({
   value,
   error,
   onCommit,
+  multiline = false,
 }: SettingInputProps) {
   // What the user is typing, kept separate from the saved value so that a
   // half-typed number (such as an empty box) is not saved.
@@ -46,7 +49,7 @@ export function SettingInput({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs font-medium text-gray-600">
+      <label htmlFor={id} className="text-label font-semibold text-ink-muted">
         {setting.label}
       </label>
 
@@ -69,6 +72,19 @@ export function SettingInput({
             </option>
           ))}
         </select>
+      ) : multiline ? (
+        <textarea
+          id={id}
+          rows={4}
+          className={`${controlClass} resize-y`}
+          value={draft}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          onChange={(event) => {
+            setDraft(event.target.value)
+          }}
+          onBlur={commitDraft}
+        />
       ) : (
         // Text and number boxes commit when the user leaves the box or
         // presses Enter, not on every keystroke.
@@ -89,7 +105,7 @@ export function SettingInput({
       )}
 
       {error && (
-        <p id={errorId} className="text-xs text-red-600">
+        <p id={errorId} className="text-label text-danger">
           {error}
         </p>
       )}

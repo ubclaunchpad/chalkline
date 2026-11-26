@@ -12,6 +12,7 @@ interface PropertyPanelProps {
   // (including by someone else), so inputs restart with the saved values.
   elementKey: string
   data: ComponentData
+  notes: string
   // Problems to show, by field: 'name' or a setting key such as 'replicas'.
   errors: Readonly<Record<string, string>>
   onChange: (change: ComponentChange) => void
@@ -25,11 +26,18 @@ const nameSetting: SettingDefinition = {
   default: '',
 }
 
-// Shows one component's name and settings. It only reports changes; saving
-// them to the board is the caller's job.
+const notesSetting: SettingDefinition = {
+  type: 'text',
+  label: 'Notes',
+  default: '',
+}
+
+// Shows one component's name, settings and notes. It only reports changes;
+// saving them to the board is the caller's job.
 export function PropertyPanel({
   elementKey,
   data,
+  notes,
   errors,
   onChange,
 }: PropertyPanelProps) {
@@ -40,14 +48,8 @@ export function PropertyPanel({
   const props: Readonly<Record<string, string | number>> = data.props
 
   return (
-    <aside
-      aria-label="Component settings"
-      className="absolute top-28 right-4 z-10 flex w-64 flex-col gap-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm"
-    >
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900">{kind.label}</h2>
-        <p className="text-xs text-gray-500">{kind.description}</p>
-      </div>
+    <section aria-label="Component settings" className="flex flex-col gap-4">
+      <p className="text-label text-ink-muted">{kind.description}</p>
 
       <SettingInput
         key={`${elementKey}-name`}
@@ -74,6 +76,18 @@ export function PropertyPanel({
           />
         ),
       )}
-    </aside>
+
+      <SettingInput
+        key={`${elementKey}-notes`}
+        id="component-notes"
+        setting={notesSetting}
+        value={notes}
+        error={errors.notes}
+        multiline
+        onCommit={(value: string | number) => {
+          onChange({ notes: String(value) })
+        }}
+      />
+    </section>
   )
 }

@@ -1,8 +1,10 @@
 import type { ExcalidrawElementSkeleton } from '@excalidraw/excalidraw/data/transform'
+import type { ComponentData } from '../catalog/catalog'
 import { validateComponent } from '../catalog/validate'
+import { canvasColor } from '../design/canvasColor'
+import { cardLabel } from '../elements/describe'
+import { CARD, CARD_LABEL, ROUNDED } from '../elements/look'
 import { COMPONENT_HEIGHT, COMPONENT_WIDTH, type CatalogEntry } from './catalog'
-
-const ADAPTIVE_RADIUS_ROUNDNESS = 3 as const
 
 /** Scene point (same units Excalidraw elements use). */
 export interface ScenePoint {
@@ -52,22 +54,27 @@ export function createComponentSkeleton(
   center: ScenePoint,
   existingNames: ReadonlySet<string>,
 ): ExcalidrawElementSkeleton {
-  const name = nextComponentName(entry.label, existingNames)
+  const data = {
+    v: 1,
+    kind: entry.kind,
+    name: nextComponentName(entry.label, existingNames),
+    props: { ...entry.defaultProps },
+  } as ComponentData
 
+  // A dark card outlined in the kind's colour; ElementEffects adds the icon.
   return {
     type: 'rectangle',
     x: center.x - COMPONENT_WIDTH / 2,
     y: center.y - COMPONENT_HEIGHT / 2,
     width: COMPONENT_WIDTH,
     height: COMPONENT_HEIGHT,
-    backgroundColor: entry.color,
-    roundness: { type: ADAPTIVE_RADIUS_ROUNDNESS },
-    label: { text: `${name}\n${entry.kind}` },
-    customData: {
-      v: 1,
-      kind: entry.kind,
-      name,
-      props: { ...entry.defaultProps },
-    },
+    backgroundColor: CARD.fill,
+    strokeColor: canvasColor(entry.color),
+    strokeWidth: 1,
+    fillStyle: 'solid',
+    roughness: 0,
+    roundness: ROUNDED,
+    label: { text: cardLabel(data), ...CARD_LABEL },
+    customData: data,
   }
 }

@@ -29,6 +29,20 @@ afterEach(() => {
 })
 
 describe('ConnectionStatus', () => {
+  it('says a share link is needed when the server refuses the key', () => {
+    renderStatus()
+    act(() => {
+      latestSocket().serverOpens()
+      latestSocket().serverSends({
+        type: 'error',
+        code: 'key_required',
+        message: 'this board needs a share link',
+      })
+      latestSocket().serverDrops()
+    })
+    expect(screen.getByRole('status').textContent).toBe('Needs a share link')
+  })
+
   it('shows connecting before the first connection opens', () => {
     renderStatus()
 

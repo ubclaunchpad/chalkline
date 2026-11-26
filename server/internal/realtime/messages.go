@@ -17,6 +17,19 @@ func lifecycleMessage(kind, clientID string) message {
 	return message{kind: websocket.MessageText, data: data}
 }
 
+// welcomeMessage is the first message on every connection. access and keys
+// are left out when the hub does not check share keys.
+func welcomeMessage(clientID string, grant Grant) message {
+	// Strings and a struct of strings always marshal successfully.
+	data, _ := json.Marshal(struct {
+		Type     string     `json:"type"`
+		ClientID string     `json:"clientId"`
+		Access   string     `json:"access,omitempty"`
+		Keys     *BoardKeys `json:"keys,omitempty"`
+	}{Type: "welcome", ClientID: clientID, Access: grant.Access, Keys: grant.Keys})
+	return message{kind: websocket.MessageText, data: data}
+}
+
 // participantsMessage lists every client in a room. Clients treat clientIds as
 // a set and replace their whole membership list with it.
 func participantsMessage(clientIDs []string) message {
@@ -65,6 +78,8 @@ const (
 	codeInvalidElement  = "invalid_element"
 	codeConflict        = "conflict"
 	codeBoardFull       = "board_full"
+	codeForbidden       = "forbidden"    // a view-only connection sent a change
+	codeKeyRequired     = "key_required" // the connection was refused
 )
 
 // protocolError is a rejected message, reported back to its sender.

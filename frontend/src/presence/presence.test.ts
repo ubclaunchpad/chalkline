@@ -204,6 +204,41 @@ describe('cursor sending', () => {
   })
 })
 
+describe('selection presence', () => {
+  it('sends a new selection at the last cursor position, and clearing it', () => {
+    const { session, connection } = setup()
+    session.select(['a'])
+    expect(connection.send).not.toHaveBeenCalled() // no position yet
+    session.pointer(point(5))
+    expect(connection.send).toHaveBeenLastCalledWith({
+      type: 'cursor',
+      x: 5,
+      y: -88.25,
+      ...createIdentity('Kathy'),
+      selectedElementIds: ['a'],
+    })
+    vi.advanceTimersByTime(CURSOR_INTERVAL_MS)
+    session.select(['a'])
+    session.select([])
+    vi.advanceTimersByTime(CURSOR_INTERVAL_MS)
+    expect(connection.send).toHaveBeenCalledTimes(2)
+    expect(connection.send).toHaveBeenLastCalledWith({
+      type: 'cursor',
+      x: 5,
+      y: -88.25,
+      ...createIdentity('Kathy'),
+    })
+  })
+
+  it("outlines a remote selection in that person's colour", () => {
+    const test = setup()
+    test.emit({ ...cursor(), selectedElementIds: ['box', 'arrow'] })
+    const alice = toCollaborators(test.participants()).get('alice' as never)
+    expect(alice?.selectedElementIds).toEqual({ box: true, arrow: true })
+    expect(alice?.color?.stroke).toBe(createIdentity('Alice').color)
+  })
+})
+
 describe('remote presence', () => {
   it('tracks by clientId, supports duplicate names, and replaces updates immutably', () => {
     const test = setup()

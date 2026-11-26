@@ -18,6 +18,7 @@ describe('usePresence', () => {
     } as PresenceConnection
     const api = {
       updateScene: vi.fn(),
+      onChange: () => () => undefined,
     } as unknown as ExcalidrawImperativeAPI
     const identity = createIdentity('Saved visitor')
     interface Props {

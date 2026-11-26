@@ -6,7 +6,8 @@ owners of #26, #27, #28 and #29.
 
 ## Connections and messages
 
-Each tab connects once at `/ws?board=<boardId>`. One connection belongs to one
+Each tab connects once at `/ws?board=<boardId>`, adding `&key=<key>` when it
+has a share key, or `&claim=<key>` when it has none (see [Share links and view-only access](#share-links-and-view-only-access)). One connection belongs to one
 room; clients with the same board ID share the same in-memory room. Before
 upgrading, the server requires a valid UTF-8 board ID with 1–64 Unicode code
 points; otherwise it returns HTTP 400. IDs are used exactly as supplied, without
@@ -82,8 +83,15 @@ Browser messages are UTF-8 JSON objects sent as WebSocket text messages:
 
 ```json
 {"type":"change","elements":[],"batchId":"optional"}
-{"type":"cursor","x":120.5,"y":88,"name":"Kathy","color":"#e03131"}
+{"type":"cursor","x":120.5,"y":88,"name":"Kathy","color":"#f5a9cb","selectedElementIds":["box1"]}
 ```
+
+`selectedElementIds` is optional: the IDs of the elements the sender has
+selected, so other browsers can outline them in the sender's colour. The
+server forwards it like any other cursor field without checking it. Browsers
+leave it out when nothing is selected, ignore it unless it is an array of
+strings, and use at most 500 IDs. A selection change with no pointer movement
+is sent as a cursor at the last position.
 
 The envelope must be a JSON object whose exact `type` is `change` or `cursor`.
 Browsers cannot send `welcome`, `snapshot`, `leave`, or `participants`; those
@@ -119,6 +127,8 @@ forwarded:
 | `conflict` | same `version` and `versionNonce` as the room's copy, different content | `same version and versionNonce with different content` |
 | `persistence_unavailable` | saving failed, pending buffer is full, or shutdown has begun | `Saving is unavailable; new changes are temporarily rejected` |
 | `board_full` | the change would grow the board past its limit | `board is full` |
+| `forbidden` | a connection opened with a view key sent a `change` | `view-only link: changes are not allowed` |
+| `key_required` | the board has keys and the connection's key is missing or wrong; sent once, then the server closes the connection with status 1008 | `this board needs a share link` |
 
 `elementId` is set for `conflict`, and for `invalid_element` when the element's
 `id` is a string, cut to its first 64 code points. `batchId` echoes the change's
@@ -137,10 +147,63 @@ channel, avoiding sends to a closed channel during concurrent broadcasts.
 Server shutdown also cancels active connections. A reconnecting client receives
 the room's snapshot; how the browser catches up is #51.
 
+## Share links and view-only access
+
+Every board has two share keys: an **edit key** and a **view key**. The server
+checks them; the browser only reports what the server decided.
+
+- **Creating keys.** The first connection to a board that has no keys becomes
+  its creator. The server makes both keys and returns them in that
+  connection's `welcome`. This happens once per board, even if two people open
+  a new board at the same moment.
+- **Claiming a new board.** A browser with no key for a board makes a random
+  edit key, saves it, and connects with `&claim=<key>`. If the board has no
+  keys, the server uses a claim of 20 to 128 bytes as the edit key (and makes
+  the view key). On a board that already has keys a claim grants nothing.
+  Without this, a connection that drops before its `welcome` arrives (React
+  Strict Mode opens and closes one in development) would make its browser the
+  creator and lose the key, and the browser's next attempt would be refused.
+- **Edit key.** Everything works as described on this page. `welcome` carries
+  `access: "edit"` and both keys, so any editor can share either link.
+- **View key.** The connection receives the welcome, snapshot, roster, every
+  change and every cursor. Every `change` it sends gets a `forbidden` error and
+  is neither applied nor forwarded. Its cursors (and selection) still go to
+  everyone. `welcome` carries `access: "view"` and no keys.
+- **Missing or wrong key** on a board that has keys: the connection is
+  upgraded only to send one `key_required` error, then closed with status 1008
+  (policy violation). The browser stops retrying and shows "Needs a share
+  link". A plain HTTP 403 would look like a network failure to the browser.
+
+```json
+{"type":"welcome","clientId":"c_A","access":"edit","keys":{"edit":"K3...","view":"Q7..."}}
+{"type":"welcome","clientId":"c_B","access":"view"}
+{"type":"error","code":"forbidden","message":"view-only link: changes are not allowed","batchId":"b1"}
+```
+
+A share link is the board URL with the key: `/?board=<boardId>&key=<key>`. The
+browser sends a key from the address bar first; otherwise it uses an edit key
+it saved in local storage, so the creator keeps edit access when coming back
+from the home page. View keys are never saved, so opening your own view link
+does not take away your edit access.
+
+Keys are passwords: the server compares them in constant time and never logs
+them. They travel in the socket URL, so production must use `wss:`.
+
+Keys sit behind the `realtime.AccessStore` interface. The prototype uses
+`MemoryAccess`, which keeps them in memory. **Known limit:** a server restart
+forgets every key, and the next person to open a board becomes its creator,
+even if they hold an old view link. Storing keys in PostgreSQL next to the
+board fixes this and needs a migration. A hub built without an access store
+(`NewHub()` in tests) checks no keys: `welcome` has no `access` field, and
+browsers treat that as edit access.
+
+Comment threads are board elements, so viewers can read comments but not add
+them.
+
 ## Joining a board
 
 ```json
-{"type":"welcome","clientId":"c_..."}
+{"type":"welcome","clientId":"c_...","access":"edit","keys":{"edit":"...","view":"..."}}
 {"type":"snapshot","elements":[ ... ]}
 {"type":"participants","clientIds":["c_..."]}
 ```
@@ -200,7 +263,10 @@ which one an error refers to.
 
 ## Known limits
 
-- **Blank canvas until #51:** today's browser ignores `snapshot`.
+- **Snapshot handling is partial (#51):** the browser merges `snapshot` into
+  the board like any change, so late joiners see the board. It does not yet
+  stay read-only until the snapshot arrives or re-send local revisions that
+  beat it.
 - **A rejected change is lost for everyone else:** one bad element rejects its
   whole batch, and today's browser ignores `error` and never re-sends.
 - **A full board stays full:** deletes free almost nothing, so a board at the
@@ -262,6 +328,20 @@ Scenario: A participant disconnects
   When all participants disconnect
   Then the room is removed
   And a new connection receives a new client ID, a snapshot, and a roster including it
+
+Scenario: A view link cannot change the board
+  Given Carol created board a and has its edit and view keys
+  And Vic joined with the view key and Eve joined with the edit key
+  When Vic sends a change
+  Then Vic receives a forbidden error and nobody receives the change
+  But Carol and Eve receive Vic's cursor, with his selection
+  When Eve sends a change
+  Then Carol and Vic receive it
+
+Scenario: A board with keys refuses a missing or wrong key
+  Given board a has keys
+  When someone connects with no key or a wrong key
+  Then they receive a key_required error and the connection closes
 
 Scenario: An invalid message does not interrupt collaboration
   Given Alice and Bob are on the same board

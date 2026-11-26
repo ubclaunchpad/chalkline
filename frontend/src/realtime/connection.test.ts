@@ -212,6 +212,35 @@ describe('connectToBoard', () => {
     })
   })
 
+  describe('share keys', () => {
+    it('sends the current key on every attempt', () => {
+      let params: Record<string, string> = {}
+      connectToBoard('abc', () => params)
+      expect(latestSocket().url).toBe('ws://localhost:5173/ws?board=abc')
+
+      params = { key: 'k1' }
+      latestSocket().serverOpens()
+      latestSocket().serverDrops()
+      vi.advanceTimersByTime(1000)
+      expect(latestSocket().url).toBe('ws://localhost:5173/ws?board=abc&key=k1')
+    })
+
+    it('stops retrying when the server refuses the key', () => {
+      const connection = connectToBoard('abc', () => ({ key: 'bad' }))
+      latestSocket().serverOpens()
+      latestSocket().serverSends({
+        type: 'error',
+        code: 'key_required',
+        message: 'this board needs a share link',
+      })
+      latestSocket().serverDrops()
+      const count = FakeWebSocket.instances.length
+      vi.advanceTimersByTime(60_000)
+      expect(FakeWebSocket.instances).toHaveLength(count)
+      expect(connection.status()).toBe('closed')
+    })
+  })
+
   describe('retrying', () => {
     it('retries after 1s, then 2s, then every 5s', () => {
       connectToBoard('abc')

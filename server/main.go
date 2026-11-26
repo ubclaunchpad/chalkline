@@ -52,21 +52,26 @@ func run(ctx context.Context, getenv func(string) string) error {
 		return err
 	}
 
+	var boards store.Store
 	databaseURL := getenv("DATABASE_URL")
 	if databaseURL == "" {
-		return fmt.Errorf("DATABASE_URL is required")
-	}
-	dbCtx, dbCancel := context.WithTimeout(ctx, 5*time.Second)
-	pool, err := pgxpool.New(dbCtx, databaseURL)
-	if err != nil {
+		// Prototype only: run without Postgres. Boards vanish on restart.
+		slog.Warn("DATABASE_URL not set; using in-memory boards that are lost on restart")
+		boards = store.NewMemory()
+	} else {
+		dbCtx, dbCancel := context.WithTimeout(ctx, 5*time.Second)
+		pool, err := pgxpool.New(dbCtx, databaseURL)
+		if err != nil {
+			dbCancel()
+			return fmt.Errorf("invalid database configuration")
+		}
+		defer pool.Close()
+		err = pool.Ping(dbCtx)
 		dbCancel()
-		return fmt.Errorf("invalid database configuration")
-	}
-	defer pool.Close()
-	err = pool.Ping(dbCtx)
-	dbCancel()
-	if err != nil {
-		return fmt.Errorf("database unavailable")
+		if err != nil {
+			return fmt.Errorf("database unavailable")
+		}
+		boards = store.NewPostgres(pool)
 	}
 	persistence := realtime.DefaultPersistenceConfig()
 	for name, target := range map[string]*time.Duration{"PERSIST_FLUSH_INTERVAL": &persistence.FlushInterval, "PERSIST_CHECKPOINT_INTERVAL": &persistence.CheckpointInterval} {
@@ -78,10 +83,12 @@ func run(ctx context.Context, getenv func(string) string) error {
 			*target = d
 		}
 	}
-	hub, err := realtime.NewPersistentHub(store.NewPostgres(pool), persistence)
+	hub, err := realtime.NewPersistentHub(boards, persistence)
 	if err != nil {
 		return err
 	}
+	// Share keys live in memory for now, behind realtime.AccessStore.
+	hub.WithAccess(realtime.NewMemoryAccess())
 	defer func() {
 		drain, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()

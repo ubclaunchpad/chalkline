@@ -51,11 +51,17 @@ export interface BoardConnection {
   close(): void
 }
 
-/** Builds the `/ws?board=<id>` URL on the page's host, with `wss:` on https. */
-function socketUrl(boardId: string): string {
+/**
+ * Builds the `/ws?board=<id>` URL on the page's host, with `wss:` on https,
+ * plus any extra parameters such as a share key.
+ */
+function socketUrl(boardId: string, params: Record<string, string>): string {
   const url = new URL('/ws', window.location.href)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('board', boardId)
+  for (const [name, value] of Object.entries(params)) {
+    url.searchParams.set(name, value)
+  }
   return url.toString()
 }
 
@@ -80,11 +86,17 @@ const RETRY_DELAYS_MS = [1000, 2000, 5000]
  * Connecting starts straight away. If the socket drops, it retries after
  * 1s, then 2s, then every 5s. The delays start over once the server
  * sends `welcome` again.
- * Retrying only stops when `close()` is called.
+ * Retrying stops when `close()` is called, or when the server refuses the
+ * key with a `key_required` error (retrying would only be refused again).
  *
  * @param boardId The board to join, sent as `?board=` on the socket URL.
+ * @param getParams Extra socket URL parameters (the share key), read fresh on
+ * each attempt so a key saved after one attempt is used on the next.
  */
-export function connectToBoard(boardId: string): BoardConnection {
+export function connectToBoard(
+  boardId: string,
+  getParams: () => Record<string, string> = () => ({}),
+): BoardConnection {
   let socket: WebSocket | null = null
   let status: ConnectionStatus = 'connecting'
   let clientId: string | null = null
@@ -92,6 +104,7 @@ export function connectToBoard(boardId: string): BoardConnection {
   let failedAttempts = 0
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let closedByUser = false
+  let refused = false
 
   type Handler = (message: ServerMessage) => void
   const handlers = new Map<ServerMessageType, Set<Handler>>()
@@ -114,7 +127,7 @@ export function connectToBoard(boardId: string): BoardConnection {
 
   function connect() {
     if (!setStatus('connecting')) return
-    const ws = new WebSocket(socketUrl(boardId))
+    const ws = new WebSocket(socketUrl(boardId, getParams()))
     socket = ws
 
     ws.onopen = () => {
@@ -134,6 +147,9 @@ export function connectToBoard(boardId: string): BoardConnection {
         // server that opens the socket and then rejects it.
         failedAttempts = 0
       }
+      if (message.type === 'error' && message.code === 'key_required') {
+        refused = true
+      }
 
       const subscribers = handlers.get(message.type)
       if (!subscribers) return
@@ -144,7 +160,7 @@ export function connectToBoard(boardId: string): BoardConnection {
       if (closedByUser) return
       socket = null
       clientId = null
-      if (!setStatus('closed')) return
+      if (!setStatus('closed') || refused) return
 
       // delay for reconnecting
       const delay =

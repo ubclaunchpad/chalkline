@@ -1,8 +1,11 @@
+// @vitest-environment jsdom
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
+import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createSceneSyncController,
   SCENE_SEND_INTERVAL_MS,
+  useSceneSync,
   type SceneSyncApi,
 } from './useSceneSync'
 
@@ -290,5 +293,39 @@ describe('createSceneSyncController', () => {
     expect(sync.unsubscribed()).toBe(true)
     expect(sync.sent).toEqual([])
     expect(sync.updates).toEqual([])
+  })
+})
+
+describe('useSceneSync', () => {
+  it('merges the join snapshot into the board', () => {
+    const handlers = new Map<string, (message: unknown) => void>()
+    const connection = {
+      send: vi.fn(),
+      on: (type: string, handler: (message: unknown) => void) => {
+        handlers.set(type, handler)
+        return () => handlers.delete(type)
+      },
+    } as unknown as Parameters<typeof useSceneSync>[0]
+    const local = rectangle({ id: 'local' })
+    const updateScene = vi.fn()
+    const api = {
+      getSceneElementsIncludingDeleted: () => [local],
+      updateScene,
+    } as unknown as Parameters<typeof useSceneSync>[1]
+    const { unmount } = renderHook(() => useSceneSync(connection, api))
+
+    handlers.get('snapshot')?.({
+      type: 'snapshot',
+      elements: [rectangle({ id: 'remote' })],
+    })
+    const merged = (
+      updateScene.mock.lastCall?.[0] as { elements: OrderedExcalidrawElement[] }
+    ).elements
+    expect(merged.map((element) => element.id).sort()).toEqual([
+      'local',
+      'remote',
+    ])
+    unmount()
+    expect(handlers.size).toBe(0)
   })
 })

@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TopBar } from './TopBar'
 
+// Renaming needs the real editor; these tests render the bar on its own.
+vi.mock('@excalidraw/excalidraw', () => ({}))
+
 afterEach(cleanup)
 
 describe('TopBar', () => {

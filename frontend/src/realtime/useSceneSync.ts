@@ -146,10 +146,20 @@ export const useSceneSync = (
       send: (elements) => {
         connection.send({ type: 'change', elements })
       },
-      subscribe: (handler) =>
-        connection.on('change', (message) => {
+      // The join snapshot is merged like any change, never replacing the
+      // board, so whoever joins late (viewers included) sees the board.
+      subscribe: (handler) => {
+        const offChange = connection.on('change', (message) => {
           handler(message.elements)
-        }),
+        })
+        const offSnapshot = connection.on('snapshot', (message) => {
+          handler(message.elements)
+        })
+        return () => {
+          offChange()
+          offSnapshot()
+        }
+      },
     })
     controllerRef.current = controller
 

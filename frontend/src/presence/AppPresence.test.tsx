@@ -16,13 +16,49 @@ const { updateScene } = vi.hoisted(() => ({
 
 vi.mock('@excalidraw/excalidraw', async () => {
   const { useEffect } = await import('react')
+  // The whole board renders, so other areas' imports need stand-ins too.
+  const unused = () => {
+    throw new Error('not used by this test')
+  }
   return {
+    CaptureUpdateAction: { IMMEDIATELY: 'IMMEDIATELY', NEVER: 'NEVER' },
+    convertToExcalidrawElements: unused,
+    exportToBlob: unused,
+    exportToSvg: unused,
+    getCommonBounds: unused,
+    loadFromBlob: unused,
+    newElementWith: unused,
+    serializeAsJSON: unused,
+    viewportCoordsToSceneCoords: unused,
     Excalidraw: ({ excalidrawAPI, renderTopRightUI }: ExcalidrawProps) => {
       useEffect(() => {
-        excalidrawAPI?.({
+        const known = {
           getSceneElementsIncludingDeleted: () => [],
+          getSceneElements: () => [],
+          // The whole board renders, so other areas' overlays read these too.
+          getAppState: () => ({
+            selectedElementIds: {},
+            activeTool: { type: 'selection' },
+            zoom: { value: 1 },
+            scrollX: 0,
+            scrollY: 0,
+            offsetLeft: 0,
+            offsetTop: 0,
+            width: 800,
+            height: 600,
+          }),
           updateScene,
-        } as unknown as ExcalidrawImperativeAPI)
+          getFiles: () => ({}),
+        }
+        // Any other method (subscriptions, addFiles...) is a no-op that
+        // returns an unsubscribe, so new overlays don't break this test.
+        const api = new Proxy(known, {
+          get: (target, name) =>
+            name in target
+              ? target[name as keyof typeof target]
+              : () => () => undefined,
+        })
+        excalidrawAPI?.(api as unknown as ExcalidrawImperativeAPI)
       }, [excalidrawAPI])
       return <>{renderTopRightUI?.(false, {} as never)}</>
     },
@@ -30,6 +66,11 @@ vi.mock('@excalidraw/excalidraw', async () => {
 })
 
 beforeEach(() => {
+  // jsdom has no font loading; the board waits for fonts before measuring.
+  Object.defineProperty(document, 'fonts', {
+    configurable: true,
+    value: { load: () => Promise.resolve([]) },
+  })
   FakeWebSocket.instances = []
   updateScene.mockClear()
   localStorage.setItem('chalkline.displayName', 'Local person')
@@ -92,7 +133,7 @@ describe('App presence integration', () => {
         x: 31,
         y: 47,
         name: 'Remote person',
-        color: '#74c0fc',
+        color: '#a5c4f7',
       })
     })
 
@@ -104,7 +145,7 @@ describe('App presence integration', () => {
     if (!collaborators) throw new Error('presence did not update collaborators')
     expect(collaborators.get('remote')).toMatchObject({
       username: 'Remote person',
-      color: { background: '#74c0fc', stroke: '#74c0fc' },
+      color: { background: '#a5c4f7', stroke: '#a5c4f7' },
       pointer: { x: 31, y: 47, tool: 'pointer' },
     })
   })

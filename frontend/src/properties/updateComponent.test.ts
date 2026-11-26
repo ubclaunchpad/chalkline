@@ -65,11 +65,12 @@ const rectangle = (customData?: Record<string, unknown>): RectangleElement => ({
 
 // Returns the updated element, failing the test with the problems if the
 // update was rejected. Throwing also narrows the result for TypeScript.
+// The element passed in is ordered, so the one returned is too.
 function updatedElement(result: UpdateResult): OrderedExcalidrawElement {
   if (!result.ok) {
     throw new Error(`expected ok, got: ${result.problems.join('; ')}`)
   }
-  return result.element
+  return result.element as OrderedExcalidrawElement
 }
 
 describe('readComponent', () => {

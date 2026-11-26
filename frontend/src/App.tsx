@@ -2,7 +2,11 @@ import { useRef, useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
-import { DEFAULT_THEME } from './design/theme'
+import { BoardProvider } from './app/board'
+import { useBoard } from './app/context'
+import { CanvasLayers, RightPanels, TopBarActions } from './app/slots'
+import { useExcalidrawProps } from './shell/excalidrawProps'
+import { HomePage } from './home/HomePage'
 import { BoardLayout } from './layout/BoardLayout'
 import { TopBar } from './layout/TopBar'
 import { loadIdentity, saveIdentity } from './presence/identity'
@@ -18,11 +22,28 @@ import { Sidebar } from './sidebar/Sidebar'
 import { useCanvasDropHandlers } from './sidebar/useCanvasDrop'
 
 function BoardCanvas() {
-  const connection = useBoardConnection()
   const [excalidrawApi, setExcalidrawApi] =
     useState<ExcalidrawImperativeAPI | null>(null)
+  return (
+    <BoardProvider
+      api={excalidrawApi}
+      boardId={getBoardId(window.location.search)}
+    >
+      <BoardScreen onApi={setExcalidrawApi} />
+    </BoardProvider>
+  )
+}
+
+function BoardScreen({
+  onApi,
+}: {
+  onApi: (api: ExcalidrawImperativeAPI) => void
+}) {
+  const { api: excalidrawApi, panel } = useBoard()
+  const excalidrawProps = useExcalidrawProps()
+  const connection = useBoardConnection()
   const [identity, setIdentity] = useState(loadIdentity)
-  const [componentsOpen, setComponentsOpen] = useState(true)
+  const [componentsOpen, setComponentsOpen] = useState(false)
   const componentsButtonRef = useRef<HTMLButtonElement>(null)
   const handleSceneChange = useSceneSync(connection, excalidrawApi)
   const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
@@ -48,6 +69,7 @@ function BoardCanvas() {
           }}
           componentsButtonRef={componentsButtonRef}
           status={<ConnectionStatus />}
+          actions={<TopBarActions />}
           participants={
             identity ? (
               <ParticipantAvatars
@@ -62,15 +84,18 @@ function BoardCanvas() {
         <Sidebar excalidrawAPI={excalidrawApi} onClose={closeComponents} />
       }
       leftPanelOpen={componentsOpen}
+      rightPanel={<RightPanels />}
+      rightPanelOpen={panel !== null}
     >
       <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
         <Excalidraw
-          excalidrawAPI={setExcalidrawApi}
+          {...excalidrawProps}
+          excalidrawAPI={onApi}
           onChange={handleSceneChange}
           onPointerUpdate={onPointerUpdate}
-          theme={DEFAULT_THEME}
         />
       </div>
+      <CanvasLayers />
       {!identity && (
         <NameDialog
           onSubmit={(next) => {
@@ -84,6 +109,10 @@ function BoardCanvas() {
 }
 
 function App() {
+  // No ?board= in the address: show the home page (area A).
+  if (!new URLSearchParams(window.location.search).has('board')) {
+    return <HomePage />
+  }
   return (
     <BoardConnectionProvider>
       <BoardCanvas />

@@ -25,6 +25,7 @@ export function ParticipantAvatars({
     {
       id: 'self',
       name: identity.name,
+      color: identity.color,
       accessibleName: `${identity.name} (you)`,
     },
     ...[...participants]
@@ -32,6 +33,7 @@ export function ParticipantAvatars({
       .map(([id, participant]) => ({
         id,
         name: participant.name,
+        color: participant.color,
         accessibleName: participant.name,
       })),
   ]
@@ -48,10 +50,12 @@ export function ParticipantAvatars({
           key={person.id}
           aria-label={person.accessibleName}
           title={person.accessibleName}
-          className="flex size-8 items-center justify-center rounded-full border-2 border-bg bg-surface-selected text-xs font-extrabold text-accent shadow-sm"
+          className="flex size-8 items-center justify-center rounded-full border-2 border-bg bg-surface-raised text-xs font-extrabold text-ink shadow-sm"
           style={{
             marginLeft: index === 0 ? 0 : '-0.375rem',
             zIndex: visible.length - index,
+            // A ring in the person's colour, matching their cursor and selection.
+            boxShadow: `0 0 0 2px ${person.color}`,
           }}
         >
           <span aria-hidden="true">{initialsFor(person.name)}</span>

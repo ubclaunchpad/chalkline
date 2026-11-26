@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { connectToBoard, type BoardConnection } from './connection'
+import { socketParams } from './shareKeys'
 import { BoardConnectionContext, syncBoardIdToUrl } from './useBoardConnection'
 
 /**
@@ -18,7 +19,8 @@ export function BoardConnectionProvider({
   const [connection, setConnection] = useState<BoardConnection | null>(null)
 
   useEffect(() => {
-    const next = connectToBoard(syncBoardIdToUrl())
+    const boardId = syncBoardIdToUrl()
+    const next = connectToBoard(boardId, () => socketParams(boardId))
     // The connection must be created here so cleanup can close it.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setConnection(next)

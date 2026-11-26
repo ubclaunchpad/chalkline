@@ -24,6 +24,22 @@ const mockExcalidraw = vi.hoisted(() => {
   return {
     api: {
       getSceneElementsIncludingDeleted: () => scene,
+      getSceneElements: () => scene.filter((element) => !element.isDeleted),
+      getAppState: () => ({
+        activeTool: { type: 'selection' },
+        selectedElementIds: {},
+        zoom: { value: 1 },
+        scrollX: 0,
+        scrollY: 0,
+        width: 1280,
+        height: 700,
+        offsetLeft: 0,
+        offsetTop: 0,
+      }),
+      onChange: () => () => undefined,
+      onScrollChange: () => () => undefined,
+      addFiles: () => undefined,
+      getFiles: () => ({}),
       updateScene,
     } as unknown as ExcalidrawImperativeAPI,
     updateScene,
@@ -48,6 +64,10 @@ vi.mock('@excalidraw/excalidraw', async () => {
     CaptureUpdateAction: {
       NEVER: 'NEVER',
     },
+    // Other areas alias these at module load; the tests never call them.
+    exportToBlob: vi.fn(),
+    exportToSvg: vi.fn(),
+    FONT_FAMILY: { Virgil: 1, Helvetica: 2, Cascadia: 3, Nunito: 6 },
     Excalidraw(props: MockExcalidrawProps) {
       mockExcalidraw.props = props
       const { excalidrawAPI } = props
@@ -128,14 +148,22 @@ describe('App scene synchronization', () => {
     expect(mockExcalidraw.props?.theme).toBe('dark')
     expect(screen.getByAltText('Chalkline')).toBeDefined()
     expect(screen.getByText('team')).toBeDefined()
-    expect(screen.getByRole('status').textContent).toBe('Connecting…')
-    expect(screen.queryByRole('button', { name: /share/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /export/i })).toBeNull()
+    // Other areas add their own status regions, so look for the text.
+    expect(screen.getByText('Connecting…').getAttribute('role')).toBe('status')
     expect(screen.queryByRole('button', { name: /theme/i })).toBeNull()
+  })
+
+  it('starts with the component panel closed', () => {
+    render(<App />)
+    const sidebar = document.getElementById('component-sidebar')
+    expect(sidebar?.parentElement?.hidden).toBe(true)
   })
 
   it('keeps the same editor scene when the component panel is toggled', () => {
     render(<App />)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show components panel' }),
+    )
     const local = rectangle({ id: 'kept' })
     mockExcalidraw.setScene([local])
 
@@ -159,6 +187,9 @@ describe('App scene synchronization', () => {
 
   it('returns focus to the component-panel button when the panel closes', () => {
     render(<App />)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show components panel' }),
+    )
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Close components panel' }),
@@ -172,6 +203,9 @@ describe('App scene synchronization', () => {
 
   it('dismisses the component panel with Escape and returns focus', () => {
     render(<App />)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show components panel' }),
+    )
     const sidebar = document.getElementById('component-sidebar')
     if (!sidebar) throw new Error('component sidebar was not rendered')
 

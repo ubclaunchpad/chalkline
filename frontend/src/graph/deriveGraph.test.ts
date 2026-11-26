@@ -124,7 +124,14 @@ describe('deriveGraph', () => {
         api: { id: 'api', ...serviceData },
         db: { id: 'db', ...databaseData },
       },
-      edges: { a1: { id: 'a1', source: 'api', target: 'db' } },
+      edges: {
+        a1: {
+          id: 'a1',
+          source: 'api',
+          target: 'db',
+          connection: { kind: 'call' },
+        },
+      },
       diagnostics: [],
     })
   })
@@ -137,7 +144,12 @@ describe('deriveGraph', () => {
     ]
 
     expect(deriveGraph(scene).edges).toEqual({
-      a1: { id: 'a1', source: 'db', target: 'api' },
+      a1: {
+        id: 'a1',
+        source: 'db',
+        target: 'api',
+        connection: { kind: 'call' },
+      },
     })
   })
 
@@ -269,5 +281,28 @@ describe('determinism', () => {
     expect(
       JSON.stringify(deriveGraph([...scene.slice(3), ...scene.slice(0, 3)])),
     ).toBe(expected)
+  })
+
+  it('skips annotations and reads connection data onto edges', () => {
+    const group = rectangle('g', {
+      customData: { v: 1, annotation: 'group', kind: 'vpc', name: 'VPC' },
+    })
+    const typed = {
+      ...arrow('a1', { start: 'api', end: 'db' }),
+      customData: {
+        v: 1,
+        annotation: 'connection',
+        kind: 'async',
+        label: 'orders.created',
+      },
+    }
+    const graph = deriveGraph([service('api'), database('db'), group, typed])
+
+    expect(Object.keys(graph.nodes)).toEqual(['api', 'db'])
+    expect(graph.diagnostics).toEqual([])
+    expect(graph.edges.a1.connection).toEqual({
+      kind: 'async',
+      label: 'orders.created',
+    })
   })
 })

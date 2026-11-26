@@ -58,8 +58,8 @@ describe('identity', () => {
 })
 
 describe('name colors', () => {
-  it('uses a fixed palette of eight distinct colors', () => {
-    expect(new Set(COLORS).size).toBe(8)
+  it('uses the five design pastels', () => {
+    expect(new Set(COLORS).size).toBe(5)
     const assigned = new Set(
       Array.from({ length: 100 }, (_, i) => colorForName(`Guest${String(i)}`)),
     )
@@ -67,8 +67,8 @@ describe('name colors', () => {
   })
 
   it('assigns deterministic colors for normal, Unicode, and long names', () => {
-    // Polynomial hash modulo eight: 75 - 97 + 116 - 104 + 121 = 111.
-    expect(colorForName('Kathy')).toBe('#ffc078')
+    // The name's polynomial hash is 72268623; modulo five picks the pink.
+    expect(colorForName('Kathy')).toBe('#f5a9cb')
     for (const name of ['Kathy', '你好 👋', 'a'.repeat(1000)]) {
       expect(COLORS).toContain(colorForName(name))
       expect(createIdentity(name).color).toBe(colorForName(name))

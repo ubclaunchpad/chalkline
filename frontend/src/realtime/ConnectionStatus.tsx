@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ConnectionStatus as Status } from './connection'
-import { useConnectionStatus } from './useBoardConnection'
+import { useBoardConnection, useConnectionStatus } from './useBoardConnection'
 
 function appearanceFor(status: Status, hasOpened: boolean) {
   if (status === 'open') return { label: 'Connected', dot: 'bg-success' }
@@ -17,11 +17,24 @@ function appearanceFor(status: Status, hasOpened: boolean) {
  */
 export function ConnectionStatus() {
   const status = useConnectionStatus()
+  const connection = useBoardConnection()
+  // The server refused our key, so the connection will not retry.
+  const [refused, setRefused] = useState(false)
+  useEffect(
+    () =>
+      connection?.on('error', (message) => {
+        if (message.code === 'key_required') setRefused(true)
+      }),
+    [connection],
+  )
   const [hasOpened, setHasOpened] = useState(status === 'open')
   // Remember the first open, so a later drop reads "Reconnecting…".
   if (status === 'open' && !hasOpened) setHasOpened(true)
 
-  const { label, dot } = appearanceFor(status, hasOpened)
+  const { label, dot } =
+    refused && status === 'closed'
+      ? { label: 'Needs a share link', dot: 'bg-danger' }
+      : appearanceFor(status, hasOpened)
 
   return (
     <div

@@ -153,3 +153,73 @@ body {
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
+
+/*
+ * Excalidraw inside the board. Our floating toolbar, zoom controls and menus
+ * replace its own chrome, so that is hidden; what stays (the shape style
+ * panel, context menus, dialogs) is recoloured to the Chalkline palette.
+ */
+.chalkline-board .excalidraw {
+  --ui-font: 'Nunito', ui-rounded, system-ui, sans-serif;
+  /* The scene background is transparent (see excalidrawProps.ts). */
+  background: var(--chalkline-color-canvas);
+}
+
+.chalkline-board .excalidraw.theme--dark {
+  --island-bg-color: var(--chalkline-color-surface);
+  --default-bg-color: var(--chalkline-color-canvas);
+  --input-bg-color: var(--chalkline-color-bg);
+  --input-border-color: var(--chalkline-color-border);
+  --input-hover-bg-color: var(--chalkline-color-surface-raised);
+  --popup-bg-color: var(--chalkline-color-surface);
+  --popup-secondary-bg-color: var(--chalkline-color-surface-raised);
+  --popup-text-color: var(--chalkline-color-ink);
+  --text-primary-color: var(--chalkline-color-ink);
+  --focus-highlight-color: var(--chalkline-color-focus-ring);
+  --color-primary: var(--chalkline-color-accent);
+  --color-primary-darker: var(--chalkline-color-accent-hover);
+  --color-primary-darkest: var(--chalkline-color-accent-pressed);
+  --color-primary-light: var(--chalkline-color-surface-selected);
+  --color-primary-hover: var(--chalkline-color-accent-hover);
+  --color-surface-high: var(--chalkline-color-surface-overlay);
+  --color-surface-mid: var(--chalkline-color-surface-raised);
+  --color-surface-low: var(--chalkline-color-surface);
+  --color-surface-lowest: var(--chalkline-color-canvas);
+  --color-on-surface: var(--chalkline-color-ink);
+  --color-brand-hover: var(--chalkline-color-accent-hover);
+  --color-brand-active: var(--chalkline-color-accent-pressed);
+  --color-surface-primary-container: var(--chalkline-color-surface-selected);
+  --color-on-primary-container: var(--chalkline-color-ink);
+  --dialog-border-color: var(--chalkline-color-border);
+  --sidebar-border-color: var(--chalkline-color-border);
+}
+
+.chalkline-board .excalidraw .main-menu-trigger,
+.chalkline-board .excalidraw .shapes-section,
+.chalkline-board .excalidraw .sidebar-trigger__label-element,
+.chalkline-board .excalidraw .layer-ui__wrapper__footer,
+.chalkline-board .excalidraw .App-bottom-bar,
+.chalkline-board .excalidraw .help-icon {
+  display: none !important;
+}
+
+.chalkline-board .excalidraw .Island {
+  border: 1px solid var(--chalkline-color-border);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+}
+
+/* Keep Excalidraw's shape style panel clear of our toolbar and the
+ * floating components panel. */
+.chalkline-board .excalidraw .App-menu_top__left {
+  margin-left: 3.5rem;
+  transition: margin-left 150ms ease;
+}
+
+.chalkline-board[data-components-open] .excalidraw .App-menu_top__left {
+  margin-left: 23.5rem;
+}
+
+/* Chalkline items use the inspector, not Excalidraw's style panel. */
+body[data-hide-shape-actions] .chalkline-board .excalidraw .App-menu__left {
+  display: none;
+}

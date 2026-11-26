@@ -34,6 +34,48 @@ describe('parseServerMessage', () => {
       expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
     })
 
+    it('parses a cursor with a selection and ignores a bad one', () => {
+      const cursor = {
+        type: 'cursor',
+        from: 'c_1',
+        x: 1,
+        y: 2,
+        name: 'A',
+        color: '#000',
+      }
+      expect(
+        parseServerMessage(
+          JSON.stringify({ ...cursor, selectedElementIds: ['a', 'b'] }),
+        ),
+      ).toEqual({ ...cursor, selectedElementIds: ['a', 'b'] })
+      expect(
+        parseServerMessage(
+          JSON.stringify({ ...cursor, selectedElementIds: [1] }),
+        ),
+      ).toEqual(cursor)
+    })
+
+    it('parses welcome with access and keys', () => {
+      const message = {
+        type: 'welcome',
+        clientId: 'c_1',
+        access: 'edit',
+        keys: { edit: 'E', view: 'V' },
+      }
+      expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
+      expect(
+        parseServerMessage(
+          '{"type":"welcome","clientId":"c_1","access":"admin","keys":{"edit":1}}',
+        ),
+      ).toEqual({ type: 'welcome', clientId: 'c_1' })
+    })
+
+    it('parses snapshot', () => {
+      const message = { type: 'snapshot', elements: [{ id: 'a', version: 1 }] }
+      expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
+      expect(parseServerMessage('{"type":"snapshot"}')).toBeNull()
+    })
+
     it('parses leave', () => {
       const message = { type: 'leave', clientId: 'c_91bd' }
       expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
@@ -47,6 +89,8 @@ describe('parseServerMessage', () => {
     it('parses error', () => {
       const message = { type: 'error', message: 'message too large' }
       expect(parseServerMessage(JSON.stringify(message))).toEqual(message)
+      const coded = { type: 'error', code: 'forbidden', message: 'no' }
+      expect(parseServerMessage(JSON.stringify(coded))).toEqual(coded)
     })
 
     it('drops fields it does not know about', () => {

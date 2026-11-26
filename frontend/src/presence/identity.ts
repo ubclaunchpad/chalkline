@@ -1,14 +1,12 @@
 export const IDENTITY_KEY = 'chalkline.displayName'
-// Light backgrounds keep Excalidraw's dark cursor-name text readable.
+// The five design pastels: blue, teal, amber, pink, violet. Light enough to
+// keep Excalidraw's dark cursor-name text readable on the name tag.
 export const COLORS = [
-  '#ffa8a8',
-  '#faa2c1',
-  '#e599f7',
-  '#b197fc',
-  '#74c0fc',
-  '#66d9e8',
-  '#8ce99a',
-  '#ffc078',
+  '#a5c4f7',
+  '#8ad9cf',
+  '#f5cf7f',
+  '#f5a9cb',
+  '#c4b0f7',
 ] as const
 
 export interface Identity {

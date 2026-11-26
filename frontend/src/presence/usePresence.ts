@@ -30,7 +30,12 @@ export function usePresence(
       api.updateScene({ collaborators: toCollaborators(next) })
     })
     session.current = active
+    // Share the selection with everyone else; sorted so order changes are no-ops.
+    const offChange = api.onChange((_elements, appState) => {
+      active.select(Object.keys(appState.selectedElementIds).sort())
+    })
     return () => {
+      offChange()
       session.current = null
       active.dispose()
       api.updateScene({ collaborators: new Map() })

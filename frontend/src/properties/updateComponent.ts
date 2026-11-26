@@ -1,7 +1,4 @@
-import type {
-  ExcalidrawElement,
-  OrderedExcalidrawElement,
-} from '@excalidraw/excalidraw/element/types'
+import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { newElementWith } from '@excalidraw/excalidraw'
 import type { ComponentData } from '../catalog/catalog.ts'
 import {
@@ -13,11 +10,21 @@ import {
 export interface ComponentChange {
   name?: string
   props?: Record<string, unknown>
+  notes?: string
 }
 
 export type UpdateResult =
-  | { ok: true; element: OrderedExcalidrawElement }
-  | { ok: false; problems: string[] }
+  { ok: true; element: ExcalidrawElement } | { ok: false; problems: string[] }
+
+export const MAX_NOTES_LENGTH = 2000
+
+// Notes live at customData.notes, not in props: validateComponent rejects
+// any prop the catalog does not define for the kind.
+export function readNotes(element: ExcalidrawElement): string {
+  const notes: unknown = (element.customData as { notes?: unknown } | undefined)
+    ?.notes
+  return typeof notes === 'string' ? notes : ''
+}
 
 // The element's component data, or null for a plain shape. customData can come
 // from another client or a saved board, so it is validated, not trusted.
@@ -44,12 +51,22 @@ function isSameComponent(a: ComponentData, b: ComponentData): boolean {
 // A change that leaves the data as it was returns the same element.
 // Invalid changes return problems and leave the element untouched.
 export function updateComponent(
-  element: OrderedExcalidrawElement,
+  element: ExcalidrawElement,
   change: ComponentChange,
 ): UpdateResult {
   const current = readComponent(element)
   if (!current) {
     return { ok: false, problems: ['element is not a component'] }
+  }
+
+  const notes: string = change.notes ?? readNotes(element)
+  if (notes.length > MAX_NOTES_LENGTH) {
+    return {
+      ok: false,
+      problems: [
+        `notes must be at most ${String(MAX_NOTES_LENGTH)} characters`,
+      ],
+    }
   }
 
   const result: ValidationResult = validateComponent({
@@ -63,12 +80,21 @@ export function updateComponent(
     return result
   }
 
-  if (isSameComponent(current, result.data)) {
+  if (isSameComponent(current, result.data) && notes === readNotes(element)) {
     return { ok: true, element }
   }
 
+  // Keep fields other areas may have stored next to the component data.
+  const others: Record<string, unknown> = { ...element.customData }
+  delete others.notes
   return {
     ok: true,
-    element: newElementWith(element, { customData: result.data }),
+    element: newElementWith(element, {
+      customData: {
+        ...others,
+        ...result.data,
+        ...(notes === '' ? {} : { notes }),
+      },
+    }),
   }
 }

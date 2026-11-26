@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+)
 
 func TestLoadConfig(t *testing.T) {
 	tests := []struct {
@@ -33,8 +37,11 @@ func TestLoadConfig(t *testing.T) {
 	}
 }
 
-func TestRunRequiresDatabase(t *testing.T) {
-	if err := run(t.Context(), func(string) string { return "" }); err == nil || err.Error() != "DATABASE_URL is required" {
-		t.Fatalf("missing database: %v", err)
+func TestRunWithoutDatabaseUsesMemory(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	env := map[string]string{"PORT": "0"}
+	if err := run(ctx, func(k string) string { return env[k] }); err != nil {
+		t.Fatalf("memory mode should serve until cancelled: %v", err)
 	}
 }

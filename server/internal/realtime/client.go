@@ -29,6 +29,7 @@ type Client struct {
 	conn     *websocket.Conn // Used by this client's read and write loops.
 	outgoing chan message    // Messages queued for this browser, not received from it.
 	cancel   context.CancelFunc
+	viewOnly bool // Opened with a view key: changes are refused, cursors pass.
 
 	// Only the newest roster matters, so at most one roster marker waits in
 	// outgoing. Without this, a burst of departures queues one roster per
@@ -96,6 +97,10 @@ func (c *Client) readLoop(ctx context.Context, room *Room) {
 		}
 		if p.kind == "cursor" {
 			room.broadcast(c, p.encoded)
+			continue
+		}
+		if c.viewOnly {
+			c.enqueue(errorMessage(&protocolError{code: codeForbidden, message: "view-only link: changes are not allowed"}, p.batchID))
 			continue
 		}
 		room.applyChange(c, p)

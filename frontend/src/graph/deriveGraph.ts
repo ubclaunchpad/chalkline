@@ -9,10 +9,51 @@ import { validateComponent } from '../catalog/validate.ts'
 
 export type GraphNode = ComponentData & { id: string }
 
+export type ConnectionKind = 'call' | 'async' | 'two-way'
+
+export interface Connection {
+  kind: ConnectionKind
+  label?: string
+  props?: Record<string, string | number | boolean>
+}
+
 export interface GraphEdge {
   id: string
   source: string
   target: string
+  /** What the arrow means. Plain arrows are a `call`. */
+  connection: Connection
+}
+
+const CONNECTION_KINDS: readonly string[] = ['call', 'async', 'two-way']
+
+/** True for prototype annotations (groups, notes, comments, connections). */
+export function isAnnotation(customData: unknown): boolean {
+  return (
+    typeof customData === 'object' &&
+    customData !== null &&
+    'annotation' in customData
+  )
+}
+
+function readConnection(customData: unknown): Connection {
+  if (typeof customData !== 'object' || customData === null) {
+    return { kind: 'call' }
+  }
+  const data = customData as Record<string, unknown>
+  if (data.annotation !== 'connection') return { kind: 'call' }
+  const kind =
+    typeof data.kind === 'string' && CONNECTION_KINDS.includes(data.kind)
+      ? (data.kind as ConnectionKind)
+      : 'call'
+  const connection: Connection = { kind }
+  if (typeof data.label === 'string' && data.label !== '') {
+    connection.label = data.label
+  }
+  if (typeof data.props === 'object' && data.props !== null) {
+    connection.props = data.props as Connection['props']
+  }
+  return connection
 }
 
 // Explains why an element was left out of the graph.
@@ -48,7 +89,7 @@ export function deriveGraph(elements: readonly ExcalidrawElement[]): Graph {
 
   for (const element of live) {
     // Plain shapes and freehand drawings have no customData.
-    if (element.customData === undefined) {
+    if (element.customData === undefined || isAnnotation(element.customData)) {
       continue
     }
     const result = validateComponent(element.customData)
@@ -73,7 +114,12 @@ export function deriveGraph(elements: readonly ExcalidrawElement[]): Graph {
     const hasTarget = target !== undefined && Object.hasOwn(nodes, target)
 
     if (hasSource && hasTarget) {
-      edges[element.id] = { id: element.id, source, target }
+      edges[element.id] = {
+        id: element.id,
+        source,
+        target,
+        connection: readConnection(element.customData),
+      }
     } else if (hasSource) {
       diagnostics.push({ elementId: element.id, message: END_PROBLEM })
     } else if (hasTarget) {

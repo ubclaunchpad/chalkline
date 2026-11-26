@@ -36,15 +36,15 @@ describe('PropertyPanel', () => {
       <PropertyPanel
         elementKey="db-1"
         data={database}
+        notes=""
         errors={{}}
         onChange={vi.fn()}
       />,
     )
 
     expect(
-      screen.getByRole('complementary', { name: 'Component settings' }),
+      screen.getByRole('region', { name: 'Component settings' }),
     ).toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Database' })).toBeDefined()
     expect(inputValue('Name')).toBe('Users DB')
     expect(inputValue('Engine')).toBe('PostgreSQL')
     expect(inputValue('Replicas')).toBe('2')
@@ -55,12 +55,12 @@ describe('PropertyPanel', () => {
       <PropertyPanel
         elementKey="cache-1"
         data={cache}
+        notes=""
         errors={{}}
         onChange={vi.fn()}
       />,
     )
 
-    expect(screen.getByRole('heading', { name: 'Cache' })).toBeDefined()
     expect(inputValue('Engine')).toBe('Redis')
     expect(inputValue('Strategy')).toBe('Cache-aside')
     expect(inputValue('TTL (seconds)')).toBe('300')
@@ -73,6 +73,7 @@ describe('PropertyPanel', () => {
       <PropertyPanel
         elementKey="db-1"
         data={database}
+        notes=""
         errors={{}}
         onChange={onChange}
       />,
@@ -91,6 +92,7 @@ describe('PropertyPanel', () => {
       <PropertyPanel
         elementKey="db-1"
         data={database}
+        notes=""
         errors={{}}
         onChange={onChange}
       />,
@@ -103,11 +105,33 @@ describe('PropertyPanel', () => {
     expect(onChange).toHaveBeenCalledWith({ name: 'Orders DB' })
   })
 
+  it('shows and reports notes', () => {
+    const onChange = vi.fn()
+    render(
+      <PropertyPanel
+        elementKey="db-1"
+        data={database}
+        notes="Primary in us-east"
+        errors={{}}
+        onChange={onChange}
+      />,
+    )
+
+    const notes = screen.getByLabelText('Notes')
+    expect(notes.tagName).toBe('TEXTAREA')
+    expect(inputValue('Notes')).toBe('Primary in us-east')
+    fireEvent.change(notes, { target: { value: 'Read replica later' } })
+    fireEvent.blur(notes)
+
+    expect(onChange).toHaveBeenCalledWith({ notes: 'Read replica later' })
+  })
+
   it('shows each error next to its input', () => {
     render(
       <PropertyPanel
         elementKey="db-1"
         data={database}
+        notes=""
         errors={{ replicas: 'replicas must be at least 1' }}
         onChange={vi.fn()}
       />,

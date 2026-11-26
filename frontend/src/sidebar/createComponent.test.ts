@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { canvasColor } from '../design/canvasColor'
 import {
   collectComponentNames,
   createComponentSkeleton,
@@ -83,7 +84,7 @@ describe('collectComponentNames', () => {
 })
 
 describe('createComponentSkeleton', () => {
-  it('creates a rectangle sized 180x100 centered on the given point', () => {
+  it('creates a rectangle sized 200x100 centered on the given point', () => {
     const skeleton = createComponentSkeleton(
       database,
       { x: 100, y: 100 },
@@ -91,9 +92,9 @@ describe('createComponentSkeleton', () => {
     )
 
     expect(skeleton.type).toBe('rectangle')
-    expect(skeleton.width).toBe(180)
+    expect(skeleton.width).toBe(200)
     expect(skeleton.height).toBe(100)
-    expect(skeleton.x).toBe(100 - 90)
+    expect(skeleton.x).toBe(100 - 100)
     expect(skeleton.y).toBe(100 - 50)
   })
 
@@ -122,7 +123,7 @@ describe('createComponentSkeleton', () => {
     expect((skeleton.customData as { name: string }).name).toBe('Database 2')
   })
 
-  it('labels the shape with the name and kind', () => {
+  it('labels the card with the name and technical detail', () => {
     const skeleton = createComponentSkeleton(
       database,
       { x: 0, y: 0 },
@@ -132,7 +133,20 @@ describe('createComponentSkeleton', () => {
       throw new Error('expected a rectangle skeleton')
     }
 
-    expect(skeleton.label?.text).toBe('Database\ndatabase')
+    expect(skeleton.label?.text).toBe('Database\nPostgreSQL · 1 replica')
+  })
+
+  it('draws a dark card outlined in the kind colour', () => {
+    const skeleton = createComponentSkeleton(
+      database,
+      { x: 0, y: 0 },
+      new Set(),
+    )
+
+    expect(skeleton).toMatchObject({
+      backgroundColor: canvasColor('#283349'),
+      strokeColor: canvasColor(database.color),
+    })
   })
 
   it('gives each new component its own props object', () => {

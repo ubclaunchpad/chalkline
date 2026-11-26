@@ -32,8 +32,9 @@ describe('ParticipantAvatars', () => {
     ).toBeDefined()
     expect(screen.getByLabelText('Anson Chan (you)')).toBeDefined()
     expect(screen.getByLabelText('Ada Vale')).toBeDefined()
-    expect(screen.getByLabelText('Anson Chan (you)').className).toContain(
-      'bg-surface-selected',
+    // Each avatar has a ring in that person's colour.
+    expect(screen.getByLabelText('Ada Vale').style.boxShadow).toContain(
+      '#e03131',
     )
     expect(
       screen.getByLabelText('Anson Chan (you)').style.backgroundColor,
