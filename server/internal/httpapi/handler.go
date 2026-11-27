@@ -9,8 +9,7 @@ import (
 )
 
 // NewHandler returns the HTTP routes served by Chalkline.
-func NewHandler() http.Handler {
-	hub := realtime.NewHub()
+func NewHandler(hub *realtime.Hub) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", handleHealthz)
 	mux.HandleFunc("GET /ws", hub.HandleWebSocket)

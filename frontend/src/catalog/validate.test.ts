@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CATALOG, type ComponentKind } from './catalog.ts'
+import { CATALOG, type ComponentKind, type KindDefinition } from './catalog.ts'
 import { validateComponent } from './validate.ts'
 
 const validDatabase = {
@@ -32,6 +32,18 @@ describe('validateComponent', () => {
       ok: true,
       data: validDatabase,
     })
+  })
+
+  // A default outside its options or below its minimum type-checks, so only
+  // validating it catches the mistake.
+  it.each(kinds)('accepts the default settings of %s', (kind) => {
+    const settings: KindDefinition['settings'] = CATALOG[kind].settings
+    const props = Object.fromEntries(
+      Object.entries(settings).map(([key, setting]) => [key, setting.default]),
+    )
+    const component = { v: 1, kind, name: 'Example', props }
+
+    expect(validateComponent(component)).toEqual({ ok: true, data: component })
   })
 
   it('rejects an unknown kind', () => {

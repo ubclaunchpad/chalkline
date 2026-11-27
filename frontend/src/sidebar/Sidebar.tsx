@@ -1,25 +1,43 @@
-import { useState } from 'react'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
-import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
+import { IconX } from '@tabler/icons-react'
 import { ChalklineIcon } from '../design/Icon'
 import { addComponentAtCenter } from './addComponent'
-import { catalog, COMPONENT_DRAG_MIME, type CatalogEntry } from './catalog'
+import {
+  catalog,
+  COMPONENT_DRAG_MIME,
+  COMPONENT_SIDEBAR_ID,
+  type CatalogEntry,
+} from './catalog'
 
 interface SidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null
+  onClose: () => void
 }
 
-const LIST_ID = 'component-sidebar-list'
-
-export function Sidebar({ excalidrawAPI }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
-
+export function Sidebar({ excalidrawAPI, onClose }: SidebarProps) {
   return (
-    <div className="flex h-full shrink-0">
+    <aside
+      id={COMPONENT_SIDEBAR_ID}
+      aria-label="Components"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onClose()
+      }}
+      className="flex h-full w-56 shrink-0 flex-col border-r border-gray-200 bg-white text-gray-900"
+    >
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-3">
+        <h2 className="text-sm font-semibold">Components</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close components panel"
+          className="inline-flex size-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-blue-500"
+        >
+          <ChalklineIcon icon={IconX} size={18} />
+        </button>
+      </div>
       <div
-        id={LIST_ID}
-        hidden={collapsed}
-        className="h-full w-56 overflow-y-auto border-r border-gray-200 bg-white text-gray-900"
+        id="component-sidebar-list"
+        className="min-h-0 flex-1 overflow-y-auto"
       >
         <ul className="flex flex-col gap-2 p-3">
           {catalog.map((entry) => (
@@ -29,22 +47,7 @@ export function Sidebar({ excalidrawAPI }: SidebarProps) {
           ))}
         </ul>
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          setCollapsed((value) => !value)
-        }}
-        aria-expanded={!collapsed}
-        aria-controls={LIST_ID}
-        aria-label={collapsed ? 'Show component list' : 'Hide component list'}
-        className="inline-flex h-8 w-6 items-center justify-center self-start rounded-r-md border border-gray-200 bg-white text-xs leading-none text-gray-600 hover:bg-gray-50"
-      >
-        <ChalklineIcon
-          icon={collapsed ? IconChevronRight : IconChevronLeft}
-          size={16}
-        />
-      </button>
-    </div>
+    </aside>
   )
 }
 

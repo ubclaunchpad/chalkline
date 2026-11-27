@@ -26,7 +26,8 @@ db-up:
 db-down:
 	docker compose down
 
-GOOSE_VERSION := v3.28.0
+# Keep the migration CLI compatible with the Go 1.25 toolchain in server/go.mod.
+GOOSE_VERSION := v3.27.0
 
 db-migrate:
 	@test -n "$(DATABASE_URL)" || (echo "DATABASE_URL is not set; copy .env.example to .env"; exit 1)

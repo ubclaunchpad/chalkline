@@ -17,6 +17,17 @@ func lifecycleMessage(kind, clientID string) message {
 	return message{kind: websocket.MessageText, data: data}
 }
 
+// participantsMessage lists every client in a room. Clients treat clientIds as
+// a set and replace their whole membership list with it.
+func participantsMessage(clientIDs []string) message {
+	// A struct of strings always marshals successfully.
+	data, _ := json.Marshal(struct {
+		Type      string   `json:"type"`
+		ClientIDs []string `json:"clientIds"`
+	}{Type: "participants", ClientIDs: clientIDs})
+	return message{kind: websocket.MessageText, data: data}
+}
+
 // errorMessage reports a rejection to its sender. batchID is the rejected
 // change's batchId, or "" when it is unknown.
 func errorMessage(err *protocolError, batchID string) message {
