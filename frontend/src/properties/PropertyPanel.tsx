@@ -45,7 +45,7 @@ export function PropertyPanel({
   return (
     <aside
       aria-label="Component settings"
-      className="absolute inset-y-0 right-0 z-10 flex w-50 flex-col gap-3 overflow-y-auto border-l border-border bg-bg p-4 motion-safe:animate-panel-in"
+      className="flex h-full w-50 flex-col max-md:w-full gap-3 overflow-y-auto border-l border-border bg-bg p-4 motion-safe:animate-panel-in"
     >
       <div>
         <h2 className="text-body font-extrabold text-ink">{kind.label}</h2>
