@@ -59,7 +59,6 @@ function BoardCanvas() {
         {panel.selection && (
           <PropertyPanel
             elementId={panel.selection.element.id}
-            elementKey={panel.selection.elementKey}
             data={panel.selection.data}
             errors={panel.errors}
             onChange={panel.save}

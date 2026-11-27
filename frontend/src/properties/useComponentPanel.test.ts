@@ -260,8 +260,23 @@ describe('useComponentPanel save', () => {
     })
 
     expect(result.current.errors).toEqual({
-      replicas: 'replicas must be at least 1',
+      replicas: 'must be at least 1',
     })
+    expect(fake.updateScene).not.toHaveBeenCalled()
+  })
+
+  it('clears errors when the saved value is committed again, saving nothing', () => {
+    const fake = fakeApi(board)
+    const { result } = renderPanel(fake, ['db'])
+
+    act(() => {
+      result.current.save({ props: { replicas: 0 } })
+    })
+    act(() => {
+      result.current.save({ props: { replicas: 1 } })
+    })
+
+    expect(result.current.errors).toEqual({})
     expect(fake.updateScene).not.toHaveBeenCalled()
   })
 

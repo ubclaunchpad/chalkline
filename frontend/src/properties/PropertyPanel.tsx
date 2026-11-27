@@ -11,11 +11,9 @@ import type { ComponentChange } from './updateComponent.ts'
 export const NAME_COMMIT_DELAY_MS = 300
 
 interface PropertyPanelProps {
-  // Changes only when a different element is selected.
+  // Changes only when a different element is selected, which restarts the
+  // inputs. Edits to the same element do not, so focus and drafts survive.
   elementId: string
-  // Changes whenever a different element is selected or the element is edited
-  // (including by someone else), so inputs restart with the saved values.
-  elementKey: string
   data: ComponentData
   // Problems to show, by field: 'name' or a setting key such as 'replicas'.
   errors: Readonly<Record<string, string>>
@@ -34,7 +32,6 @@ const nameSetting: SettingDefinition = {
 // them to the board is the caller's job.
 export function PropertyPanel({
   elementId,
-  elementKey,
   data,
   errors,
   onChange,
@@ -55,10 +52,11 @@ export function PropertyPanel({
         <p className="text-xs text-ink-muted">{kind.description}</p>
       </div>
 
-      {/* The name saves while the user is still typing, and each save makes a
-          new element version. Keying by version would rebuild the input and
-          drop focus mid-word, so it is keyed by element only and follows
-          outside renames through its value instead. */}
+      {/* Every input is keyed by element and field, not by element version.
+          Each save (ours or a collaborator's) makes a new version, and keying
+          by it would rebuild every input, dropping focus and any half-typed
+          draft. SettingInput follows outside changes to its own value instead,
+          so only the field that changed shows something new. */}
       <SettingInput
         key={`${elementId}-name`}
         id="component-name"
@@ -74,7 +72,7 @@ export function PropertyPanel({
       {Object.entries(settings).map(
         ([key, setting]: [string, SettingDefinition]) => (
           <SettingInput
-            key={`${elementKey}-${key}`}
+            key={`${elementId}-${key}`}
             id={`component-setting-${key}`}
             setting={setting}
             value={props[key]}

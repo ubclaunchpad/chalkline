@@ -105,7 +105,7 @@ describe('SettingInput', () => {
       expect(onCommit).toHaveBeenCalledWith(3)
     })
 
-    it('commits an empty box as 0 so the validator can reject it', () => {
+    it('commits an empty box as NaN, not 0, so it is never saved', () => {
       const onCommit = vi.fn()
       render(
         <SettingInput
@@ -120,7 +120,7 @@ describe('SettingInput', () => {
       fireEvent.change(input, { target: { value: '' } })
       fireEvent.blur(input)
 
-      expect(onCommit).toHaveBeenCalledWith(0)
+      expect(onCommit).toHaveBeenCalledWith(Number.NaN)
     })
   })
 
@@ -180,6 +180,27 @@ describe('SettingInput', () => {
 
       expect(input.getAttribute('aria-invalid')).toBe('true')
       expect(input.getAttribute('aria-describedby')).toBe(message.id)
+    })
+
+    it('commits the saved value again so a stale error can clear', () => {
+      // The user typed 0, the save failed and showed an error, then they typed
+      // the saved value back. Skipping this commit would leave the error up.
+      const onCommit = vi.fn()
+      render(
+        <SettingInput
+          id="replicas"
+          setting={replicas}
+          value={1}
+          error="must be at least 1"
+          onCommit={onCommit}
+        />,
+      )
+
+      const input = screen.getByLabelText('Replicas')
+      fireEvent.change(input, { target: { value: '1' } })
+      fireEvent.blur(input)
+
+      expect(onCommit).toHaveBeenCalledWith(1)
     })
 
     it('is not marked invalid without an error', () => {

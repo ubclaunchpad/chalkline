@@ -12,6 +12,13 @@ interface SettingInputProps {
   commitDelayMs?: number
 }
 
+// Number('') is 0, which would quietly save an empty box as 0 for any setting
+// whose minimum allows it. An empty box is not a number, so it becomes NaN and
+// the validator reports 'must be a number'.
+function draftToNumber(draft: string): number {
+  return draft.trim() === '' ? Number.NaN : Number(draft)
+}
+
 const controlClass =
   'h-8 w-full rounded-md border border-border-strong bg-surface px-3 text-label text-ink focus-visible:outline-2 focus-visible:outline-focus-ring aria-invalid:border-danger'
 
@@ -39,13 +46,15 @@ export function SettingInput({
     setDraft(String(value))
   }
 
-  // Only send real changes: committing an unchanged value would still bump
-  // the element's version and sync an edit that changed nothing.
+  // Only send real changes, so an untouched box does no work. The exception is
+  // a box showing an error whose draft is back at the saved value: committing
+  // it lets the caller clear the error. That save changes nothing, so it does
+  // not bump the element's version or sync an edit.
   const commitDraft = () => {
-    if (draft === String(value)) {
+    if (draft === String(value) && !error) {
       return
     }
-    onCommit(setting.type === 'number' ? Number(draft) : draft)
+    onCommit(setting.type === 'number' ? draftToNumber(draft) : draft)
   }
 
   // An effect event always sees the latest draft and onCommit without making

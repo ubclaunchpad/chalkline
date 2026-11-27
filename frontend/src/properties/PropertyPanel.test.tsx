@@ -35,7 +35,6 @@ describe('PropertyPanel', () => {
     render(
       <PropertyPanel
         elementId="db"
-        elementKey="db-1"
         data={database}
         errors={{}}
         onChange={vi.fn()}
@@ -55,7 +54,6 @@ describe('PropertyPanel', () => {
     render(
       <PropertyPanel
         elementId="cache"
-        elementKey="cache-1"
         data={cache}
         errors={{}}
         onChange={vi.fn()}
@@ -74,7 +72,6 @@ describe('PropertyPanel', () => {
     render(
       <PropertyPanel
         elementId="db"
-        elementKey="db-1"
         data={database}
         errors={{}}
         onChange={onChange}
@@ -93,7 +90,6 @@ describe('PropertyPanel', () => {
     render(
       <PropertyPanel
         elementId="db"
-        elementKey="db-1"
         data={database}
         errors={{}}
         onChange={onChange}
@@ -114,7 +110,6 @@ describe('PropertyPanel', () => {
       const { rerender } = render(
         <PropertyPanel
           elementId="db"
-          elementKey="db-1"
           data={database}
           errors={{}}
           onChange={onChange}
@@ -133,7 +128,6 @@ describe('PropertyPanel', () => {
       rerender(
         <PropertyPanel
           elementId="db"
-          elementKey="db-2"
           data={{ ...database, name: 'Orders DB' }}
           errors={{}}
           onChange={onChange}
@@ -147,11 +141,119 @@ describe('PropertyPanel', () => {
     }
   })
 
+  it('keeps focus on a setting after it saves', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={onChange}
+      />,
+    )
+
+    const replicas = screen.getByLabelText('Replicas')
+    replicas.focus()
+    fireEvent.change(replicas, { target: { value: '3' } })
+    fireEvent.keyDown(replicas, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledWith({ props: { replicas: 3 } })
+
+    // The save comes back as a new version of the same element.
+    rerender(
+      <PropertyPanel
+        elementId="db"
+        data={{ ...database, props: { ...database.props, replicas: 3 } }}
+        errors={{}}
+        onChange={onChange}
+      />,
+    )
+
+    expect(screen.getByLabelText('Replicas')).toBe(replicas)
+    expect(document.activeElement).toBe(replicas)
+    expect(inputValue('Replicas')).toBe('3')
+  })
+
+  it('keeps a half-typed draft when someone else changes another setting', () => {
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    const replicas = screen.getByLabelText('Replicas')
+    replicas.focus()
+    fireEvent.change(replicas, { target: { value: '5' } })
+
+    // A collaborator switches the engine before this box is saved.
+    rerender(
+      <PropertyPanel
+        elementId="db"
+        data={{ ...database, props: { ...database.props, engine: 'MySQL' } }}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(inputValue('Engine')).toBe('MySQL')
+    expect(inputValue('Replicas')).toBe('5')
+    expect(document.activeElement).toBe(replicas)
+  })
+
+  it('shows a collaborator change to the setting itself', () => {
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    rerender(
+      <PropertyPanel
+        elementId="db"
+        data={{ ...database, props: { ...database.props, replicas: 4 } }}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(inputValue('Replicas')).toBe('4')
+  })
+
+  it('starts fresh drafts when another component is selected', () => {
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Replicas'), {
+      target: { value: '9' },
+    })
+
+    rerender(
+      <PropertyPanel
+        elementId="db-other"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(inputValue('Replicas')).toBe('2')
+  })
+
   it('shows each error next to its input', () => {
     render(
       <PropertyPanel
         elementId="db"
-        elementKey="db-1"
         data={database}
         errors={{ replicas: 'replicas must be at least 1' }}
         onChange={vi.fn()}
