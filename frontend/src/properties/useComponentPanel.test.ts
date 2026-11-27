@@ -365,6 +365,55 @@ describe('useComponentPanel save', () => {
     expect(result.current.errors).toEqual({ replicas: 'must be at least 1' })
   })
 
+  it('drops an error once someone else changes that field', () => {
+    const fake = fakeApi(board)
+    const hook = renderPanel(fake, ['db'])
+
+    act(() => {
+      hook.result.current.save({ props: { replicas: 0 } })
+    })
+    act(() => {
+      hook.result.current.save({ name: '' })
+    })
+
+    // A collaborator sets replicas to 4. The box now shows 4, so the error
+    // about the rejected 0 no longer applies. The name was not touched.
+    const edited = box({
+      id: 'db',
+      customData: { ...database, props: { engine: 'PostgreSQL', replicas: 4 } },
+      labelId: 'db-label',
+      version: 2,
+    })
+    const remote = [edited, dbLabel, cacheBox, plainBox]
+    fake.setScene(remote)
+    select(hook, ['db'], remote)
+
+    expect(hook.result.current.errors).toEqual({ name: 'is required' })
+  })
+
+  it('keeps an error when someone else changes a different field', () => {
+    const fake = fakeApi(board)
+    const hook = renderPanel(fake, ['db'])
+
+    act(() => {
+      hook.result.current.save({ props: { replicas: 0 } })
+    })
+
+    const edited = box({
+      id: 'db',
+      customData: { ...database, props: { engine: 'MySQL', replicas: 1 } },
+      labelId: 'db-label',
+      version: 2,
+    })
+    const remote = [edited, dbLabel, cacheBox, plainBox]
+    fake.setScene(remote)
+    select(hook, ['db'], remote)
+
+    expect(hook.result.current.errors).toEqual({
+      replicas: 'must be at least 1',
+    })
+  })
+
   it('does not update the scene when nothing changed', () => {
     const fake = fakeApi(board)
     const { result } = renderPanel(fake, ['db'])

@@ -3,14 +3,19 @@ import type {
   AppState,
   ExcalidrawImperativeAPI,
 } from '@excalidraw/excalidraw/types'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import type { ComponentData } from '../catalog/catalog.ts'
 import { relabelComponent, type Relabelled } from './componentLabel.ts'
 import { fieldErrors } from './fieldErrors.ts'
 import {
   selectedComponent,
   type SelectedComponent,
 } from './selectedComponent.ts'
-import { updateComponent, type ComponentChange } from './updateComponent.ts'
+import {
+  readComponent,
+  updateComponent,
+  type ComponentChange,
+} from './updateComponent.ts'
 
 // The parts of Excalidraw's API the panel uses, so tests can pass a small fake.
 export type PanelApi = Pick<
@@ -19,17 +24,27 @@ export type PanelApi = Pick<
 >
 
 export interface PanelSelection extends SelectedComponent {
-  // id + version, recorded when the selection was read. Excalidraw edits
-  // elements in place, so comparing element.version later could compare an
-  // object with itself; a string taken at the time cannot change.
+  // id + version, recorded when the selection was read, so onSceneChange can
+  // skip re-rendering when nothing changed. Excalidraw edits elements in
+  // place, so comparing element.version later could compare an object with
+  // itself; a string taken at the time cannot change. It is not used as a
+  // React key: the panel keys inputs by element id so saves keep focus.
   elementKey: string
+}
+
+// A rejected change, remembered with the field's saved value at the time.
+// Once that value changes (for example a collaborator sets it), the user's
+// rejected draft has been replaced, so the error no longer applies.
+interface FieldError {
+  message: string
+  savedValue: unknown
 }
 
 // Errors remember which element they are for, so selecting another component
 // does not show the previous one's errors.
 interface PanelErrors {
   elementId: string
-  errors: Record<string, string>
+  errors: Record<string, FieldError>
 }
 
 const NO_ERRORS: Readonly<Record<string, string>> = {}
@@ -42,6 +57,18 @@ function changedFields(change: ComponentChange): string[] {
     fields.push('name')
   }
   return fields
+}
+
+// A field's saved value, by the same names as changedFields.
+function fieldValue(data: ComponentData | null, field: string): unknown {
+  if (!data) {
+    return undefined
+  }
+  if (field === 'name') {
+    return data.name
+  }
+  const props: Readonly<Record<string, unknown>> = data.props
+  return props[field]
 }
 
 export interface ComponentPanel {
@@ -112,18 +139,23 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
       // A save only decides the errors of the fields it changed. Other fields
       // keep theirs, because their boxes may still show a rejected draft.
       const touched: string[] = changedFields(change)
+      const saved: ComponentData | null = readComponent(element)
       setPanelErrors((prev: PanelErrors | null) => {
-        const kept: Record<string, string> = {}
+        const errors: Record<string, FieldError> = {}
         if (prev?.elementId === element.id) {
-          for (const [field, message] of Object.entries(prev.errors)) {
+          for (const [field, error] of Object.entries(prev.errors)) {
             if (!touched.includes(field)) {
-              kept[field] = message
+              errors[field] = error
             }
           }
         }
-        const errors: Record<string, string> = result.ok
-          ? kept
-          : { ...kept, ...fieldErrors(result.problems) }
+        if (!result.ok) {
+          for (const [field, message] of Object.entries(
+            fieldErrors(result.problems),
+          )) {
+            errors[field] = { message, savedValue: fieldValue(saved, field) }
+          }
+        }
         return Object.keys(errors).length > 0
           ? { elementId: element.id, errors }
           : null
@@ -159,10 +191,20 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
     [api, selection],
   )
 
-  const errors: Readonly<Record<string, string>> =
-    panelErrors && panelErrors.elementId === selection?.element.id
-      ? panelErrors.errors
-      : NO_ERRORS
+  // Only show errors for the selected element, and only while each field
+  // still holds the saved value the error was made against.
+  const errors: Readonly<Record<string, string>> = useMemo(() => {
+    if (!selection || panelErrors?.elementId !== selection.element.id) {
+      return NO_ERRORS
+    }
+    const shown: Record<string, string> = {}
+    for (const [field, error] of Object.entries(panelErrors.errors)) {
+      if (fieldValue(selection.data, field) === error.savedValue) {
+        shown[field] = error.message
+      }
+    }
+    return shown
+  }, [panelErrors, selection])
 
   return { selection, errors, onSceneChange, save }
 }

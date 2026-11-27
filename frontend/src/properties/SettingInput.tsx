@@ -14,9 +14,11 @@ interface SettingInputProps {
 
 // Number('') is 0, which would quietly save an empty box as 0 for any setting
 // whose minimum allows it. An empty box is not a number, so it becomes NaN and
-// the validator reports 'must be a number'.
+// the validator reports 'must be a number'. A number box reports '' for
+// anything that is not a number (including only spaces), so '' is the only
+// case to catch.
 function draftToNumber(draft: string): number {
-  return draft.trim() === '' ? Number.NaN : Number(draft)
+  return draft === '' ? Number.NaN : Number(draft)
 }
 
 const controlClass =
