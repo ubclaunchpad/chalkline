@@ -318,6 +318,53 @@ describe('useComponentPanel save', () => {
     expect(result.current.errors).toEqual({})
   })
 
+  it("keeps a field's error when a different field saves", () => {
+    // The Replicas box still shows the rejected 0, so its error must stay
+    // after an unrelated setting saves.
+    const { result } = renderPanel(fakeApi(board), ['db'])
+
+    act(() => {
+      result.current.save({ props: { replicas: 0 } })
+    })
+    act(() => {
+      result.current.save({ props: { engine: 'MySQL' } })
+    })
+
+    expect(result.current.errors).toEqual({ replicas: 'must be at least 1' })
+  })
+
+  it("keeps a field's error when a different field fails", () => {
+    const { result } = renderPanel(fakeApi(board), ['db'])
+
+    act(() => {
+      result.current.save({ props: { replicas: 0 } })
+    })
+    act(() => {
+      result.current.save({ name: '' })
+    })
+
+    expect(result.current.errors).toEqual({
+      replicas: 'must be at least 1',
+      name: 'is required',
+    })
+  })
+
+  it('clears a name error once the name saves, keeping other errors', () => {
+    const { result } = renderPanel(fakeApi(board), ['db'])
+
+    act(() => {
+      result.current.save({ props: { replicas: 0 } })
+    })
+    act(() => {
+      result.current.save({ name: '' })
+    })
+    act(() => {
+      result.current.save({ name: database.name })
+    })
+
+    expect(result.current.errors).toEqual({ replicas: 'must be at least 1' })
+  })
+
   it('does not update the scene when nothing changed', () => {
     const fake = fakeApi(board)
     const { result } = renderPanel(fake, ['db'])

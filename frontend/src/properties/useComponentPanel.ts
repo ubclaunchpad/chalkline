@@ -34,6 +34,16 @@ interface PanelErrors {
 
 const NO_ERRORS: Readonly<Record<string, string>> = {}
 
+// The fields a change sets, named as fieldErrors names them: 'name' or a
+// setting key such as 'replicas'.
+function changedFields(change: ComponentChange): string[] {
+  const fields: string[] = Object.keys(change.props ?? {})
+  if (change.name !== undefined) {
+    fields.push('name')
+  }
+  return fields
+}
+
 export interface ComponentPanel {
   selection: PanelSelection | null
   errors: Readonly<Record<string, string>>
@@ -99,15 +109,29 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
       }
 
       const result = updateComponent(element, change)
+      // A save only decides the errors of the fields it changed. Other fields
+      // keep theirs, because their boxes may still show a rejected draft.
+      const touched: string[] = changedFields(change)
+      setPanelErrors((prev: PanelErrors | null) => {
+        const kept: Record<string, string> = {}
+        if (prev?.elementId === element.id) {
+          for (const [field, message] of Object.entries(prev.errors)) {
+            if (!touched.includes(field)) {
+              kept[field] = message
+            }
+          }
+        }
+        const errors: Record<string, string> = result.ok
+          ? kept
+          : { ...kept, ...fieldErrors(result.problems) }
+        return Object.keys(errors).length > 0
+          ? { elementId: element.id, errors }
+          : null
+      })
       if (!result.ok) {
-        setPanelErrors({
-          elementId: element.id,
-          errors: fieldErrors(result.problems),
-        })
         return
       }
 
-      setPanelErrors(null)
       const updated: OrderedExcalidrawElement = result.element
       // updateComponent returns the same element when nothing changed.
       if (updated === element) {
