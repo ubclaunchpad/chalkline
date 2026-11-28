@@ -80,10 +80,10 @@ Feature: Component property panel
 | Saving a setting | `useComponentPanel.test.ts`; across two windows, manual |
 | Rejecting an invalid value | `useComponentPanel.test.ts`, `PropertyPanel.test.tsx` |
 | Putting back the saved value | `SettingInput.test.tsx`, `useComponentPanel.test.ts` |
-| Saving another field while one is invalid | `useComponentPanel.test.ts` |
+| Saving another field while one is invalid | `panelErrors.test.ts`, `useComponentPanel.test.ts` |
 | Someone else edits a different field | `PropertyPanel.test.tsx`, `useComponentPanel.test.ts` |
 | Someone else edits the field I am typing in | `PropertyPanel.test.tsx` |
-| Someone else fixes a field that shows an error | `useComponentPanel.test.ts` |
+| Someone else fixes a field that shows an error | `panelErrors.test.ts`, `useComponentPanel.test.ts` |
 | Selecting another component | `PropertyPanel.test.tsx`, `useComponentPanel.test.ts` |
 
 The two-window run (one browser window per user) is still a manual check.

@@ -8,12 +8,16 @@ import type { ComponentChange } from './updateComponent.ts'
 // Fields are named as fieldErrors names them: 'name' or a setting key such as
 // 'replicas'.
 
+// A field's saved value: text or a number, or undefined for a name that is
+// not a component field. Always a primitive, so === compares it.
+type FieldValue = string | number | undefined
+
 // A rejected change, remembered with the field's saved value at the time.
 // Once that value changes (for example a collaborator sets it), the user's
 // rejected draft has been replaced, so the error no longer applies.
 interface FieldError {
   message: string
-  savedValue: unknown
+  savedValue: FieldValue
 }
 
 // Errors remember which element they are for, so selecting another component
@@ -35,15 +39,16 @@ function changedFields(change: ComponentChange): string[] {
 }
 
 // A field's saved value.
-function fieldValue(data: ComponentData | null, field: string): unknown {
+function fieldValue(data: ComponentData | null, field: string): FieldValue {
   if (!data) {
     return undefined
   }
   if (field === 'name') {
     return data.name
   }
-  const props: Readonly<Record<string, unknown>> = data.props
-  return props[field]
+  // Widened like in validate.ts: each kind has its own setting keys.
+  const props: Readonly<Record<string, string | number>> = data.props
+  return Object.hasOwn(props, field) ? props[field] : undefined
 }
 
 function withErrors(
