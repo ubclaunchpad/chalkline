@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentData } from '../catalog/catalog.ts'
-import { PropertyPanel } from './PropertyPanel.tsx'
+import { NAME_COMMIT_DELAY_MS, PropertyPanel } from './PropertyPanel.tsx'
 
 // PropertyPanel only imports a type from updateComponent.ts, which is removed
 // when compiling, so Excalidraw is never loaded and needs no mock here.
@@ -34,7 +34,7 @@ describe('PropertyPanel', () => {
   it("shows a database's kind, name and settings with current values", () => {
     render(
       <PropertyPanel
-        elementKey="db-1"
+        elementId="db"
         data={database}
         errors={{}}
         onChange={vi.fn()}
@@ -53,7 +53,7 @@ describe('PropertyPanel', () => {
   it("builds the inputs from the kind's catalog settings", () => {
     render(
       <PropertyPanel
-        elementKey="cache-1"
+        elementId="cache"
         data={cache}
         errors={{}}
         onChange={vi.fn()}
@@ -71,7 +71,7 @@ describe('PropertyPanel', () => {
     const onChange = vi.fn()
     render(
       <PropertyPanel
-        elementKey="db-1"
+        elementId="db"
         data={database}
         errors={{}}
         onChange={onChange}
@@ -89,7 +89,7 @@ describe('PropertyPanel', () => {
     const onChange = vi.fn()
     render(
       <PropertyPanel
-        elementKey="db-1"
+        elementId="db"
         data={database}
         errors={{}}
         onChange={onChange}
@@ -103,10 +103,156 @@ describe('PropertyPanel', () => {
     expect(onChange).toHaveBeenCalledWith({ name: 'Orders DB' })
   })
 
+  it('reports a rename after a pause in typing, keeping focus on the name', () => {
+    vi.useFakeTimers()
+    try {
+      const onChange = vi.fn()
+      const { rerender } = render(
+        <PropertyPanel
+          elementId="db"
+          data={database}
+          errors={{}}
+          onChange={onChange}
+        />,
+      )
+
+      const name = screen.getByLabelText('Name')
+      name.focus()
+      fireEvent.change(name, { target: { value: 'Orders DB' } })
+      vi.advanceTimersByTime(NAME_COMMIT_DELAY_MS)
+
+      expect(onChange).toHaveBeenCalledWith({ name: 'Orders DB' })
+
+      // The save returns as a new version; the box must survive it.
+      rerender(
+        <PropertyPanel
+          elementId="db"
+          data={{ ...database, name: 'Orders DB' }}
+          errors={{}}
+          onChange={onChange}
+        />,
+      )
+
+      expect(screen.getByLabelText('Name')).toBe(name)
+      expect(document.activeElement).toBe(name)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps focus on a setting after it saves', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={onChange}
+      />,
+    )
+
+    const replicas = screen.getByLabelText('Replicas')
+    replicas.focus()
+    fireEvent.change(replicas, { target: { value: '3' } })
+    fireEvent.keyDown(replicas, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledWith({ props: { replicas: 3 } })
+
+    // The save comes back as a new version of the same element.
+    rerender(
+      <PropertyPanel
+        elementId="db"
+        data={{ ...database, props: { ...database.props, replicas: 3 } }}
+        errors={{}}
+        onChange={onChange}
+      />,
+    )
+
+    expect(screen.getByLabelText('Replicas')).toBe(replicas)
+    expect(document.activeElement).toBe(replicas)
+    expect(inputValue('Replicas')).toBe('3')
+  })
+
+  it('keeps a half-typed draft when someone else changes another setting', () => {
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    const replicas = screen.getByLabelText('Replicas')
+    replicas.focus()
+    fireEvent.change(replicas, { target: { value: '5' } })
+
+    // A collaborator switches the engine before this box is saved.
+    rerender(
+      <PropertyPanel
+        elementId="db"
+        data={{ ...database, props: { ...database.props, engine: 'MySQL' } }}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(inputValue('Engine')).toBe('MySQL')
+    expect(inputValue('Replicas')).toBe('5')
+    expect(document.activeElement).toBe(replicas)
+  })
+
+  it('shows a collaborator change to the setting itself', () => {
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    rerender(
+      <PropertyPanel
+        elementId="db"
+        data={{ ...database, props: { ...database.props, replicas: 4 } }}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(inputValue('Replicas')).toBe('4')
+  })
+
+  it('starts fresh drafts when another component is selected', () => {
+    const { rerender } = render(
+      <PropertyPanel
+        elementId="db"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Replicas'), {
+      target: { value: '9' },
+    })
+
+    rerender(
+      <PropertyPanel
+        elementId="db-other"
+        data={database}
+        errors={{}}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(inputValue('Replicas')).toBe('2')
+  })
+
   it('shows each error next to its input', () => {
     render(
       <PropertyPanel
-        elementKey="db-1"
+        elementId="db"
         data={database}
         errors={{ replicas: 'replicas must be at least 1' }}
         onChange={vi.fn()}

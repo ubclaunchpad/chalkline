@@ -7,18 +7,19 @@ import {
 import { SettingInput } from './SettingInput.tsx'
 import type { ComponentChange } from './updateComponent.ts'
 
+// Name saves this long after the last keystroke.
+export const NAME_COMMIT_DELAY_MS = 300
+
 interface PropertyPanelProps {
-  // Changes whenever a different element is selected or the element is edited
-  // (including by someone else), so inputs restart with the saved values.
-  elementKey: string
+  // A new id resets the inputs; a new version does not.
+  elementId: string
   data: ComponentData
-  // Problems to show, by field: 'name' or a setting key such as 'replicas'.
+  // By field: 'name' or a setting key.
   errors: Readonly<Record<string, string>>
   onChange: (change: ComponentChange) => void
 }
 
-// The name is not a catalog setting, but it edits like a text setting, so it
-// reuses the same input.
+// Name isn't a catalog setting but edits like a text one.
 const nameSetting: SettingDefinition = {
   type: 'text',
   label: 'Name',
@@ -28,7 +29,7 @@ const nameSetting: SettingDefinition = {
 // Shows one component's name and settings. It only reports changes; saving
 // them to the board is the caller's job.
 export function PropertyPanel({
-  elementKey,
+  elementId,
   data,
   errors,
   onChange,
@@ -42,19 +43,21 @@ export function PropertyPanel({
   return (
     <aside
       aria-label="Component settings"
-      className="absolute top-28 right-4 z-10 flex w-64 flex-col gap-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm"
+      className="flex h-full w-50 flex-col max-md:w-full gap-3 overflow-y-auto border-l border-border bg-bg p-4 motion-safe:animate-panel-in"
     >
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">{kind.label}</h2>
-        <p className="text-xs text-gray-500">{kind.description}</p>
+        <h2 className="text-body font-extrabold text-ink">{kind.label}</h2>
+        <p className="text-xs text-ink-muted">{kind.description}</p>
       </div>
 
+      {/* Keyed by element, not version, so saves keep focus and drafts. */}
       <SettingInput
-        key={`${elementKey}-name`}
+        key={`${elementId}-name`}
         id="component-name"
         setting={nameSetting}
         value={data.name}
         error={errors.name}
+        commitDelayMs={NAME_COMMIT_DELAY_MS}
         onCommit={(value: string | number) => {
           onChange({ name: String(value) })
         }}
@@ -63,7 +66,7 @@ export function PropertyPanel({
       {Object.entries(settings).map(
         ([key, setting]: [string, SettingDefinition]) => (
           <SettingInput
-            key={`${elementKey}-${key}`}
+            key={`${elementId}-${key}`}
             id={`component-setting-${key}`}
             setting={setting}
             value={props[key]}

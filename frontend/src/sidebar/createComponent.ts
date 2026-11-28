@@ -1,5 +1,6 @@
 import type { ExcalidrawElementSkeleton } from '@excalidraw/excalidraw/data/transform'
 import { validateComponent } from '../catalog/validate'
+import { componentLabelText } from '../properties/labelText'
 import { COMPONENT_HEIGHT, COMPONENT_WIDTH, type CatalogEntry } from './catalog'
 
 const ADAPTIVE_RADIUS_ROUNDNESS = 3 as const
@@ -62,7 +63,7 @@ export function createComponentSkeleton(
     height: COMPONENT_HEIGHT,
     backgroundColor: entry.color,
     roundness: { type: ADAPTIVE_RADIUS_ROUNDNESS },
-    label: { text: `${name}\n${entry.kind}` },
+    label: { text: componentLabelText(name, entry.kind) },
     customData: {
       v: 1,
       kind: entry.kind,

@@ -10,6 +10,8 @@ import { NameDialog } from './presence/NameDialog'
 import { ParticipantAvatars } from './presence/ParticipantAvatars'
 import './presence/presence.css'
 import { usePresence } from './presence/usePresence'
+import { PropertyPanel } from './properties/PropertyPanel'
+import { useComponentPanel } from './properties/useComponentPanel'
 import { BoardConnectionProvider } from './realtime/BoardConnectionProvider'
 import { ConnectionStatus } from './realtime/ConnectionStatus'
 import { getBoardId, useBoardConnection } from './realtime/useBoardConnection'
@@ -47,6 +49,7 @@ function BoardCanvas() {
   }
   const handleSceneChange = useSceneSync(connection, excalidrawApi)
   const { onDragOver, onDrop } = useCanvasDropHandlers(excalidrawApi)
+  const panel = useComponentPanel(excalidrawApi)
   const { participants, onPointerUpdate } = usePresence(
     identity,
     connection ?? undefined,
@@ -81,6 +84,17 @@ function BoardCanvas() {
         <Sidebar excalidrawAPI={excalidrawApi} onClose={closeComponents} />
       }
       leftPanelOpen={componentsOpen}
+      rightPanel={
+        panel.selection && (
+          <PropertyPanel
+            elementId={panel.selection.element.id}
+            data={panel.selection.data}
+            errors={panel.errors}
+            onChange={panel.save}
+          />
+        )
+      }
+      rightPanelOpen={panel.selection !== null}
     >
       <div
         ref={canvasRef}
@@ -90,9 +104,12 @@ function BoardCanvas() {
       >
         <Excalidraw
           excalidrawAPI={setExcalidrawApi}
-          onChange={handleSceneChange}
           onPointerUpdate={onPointerUpdate}
           theme={DEFAULT_THEME}
+          onChange={(elements, appState) => {
+            handleSceneChange(elements)
+            panel.onSceneChange(elements, appState)
+          }}
         />
         <FloatingToolbar
           api={excalidrawApi}

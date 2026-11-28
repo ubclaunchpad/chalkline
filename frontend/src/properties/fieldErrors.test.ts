@@ -6,18 +6,22 @@ describe('fieldErrors', () => {
     expect(fieldErrors([])).toEqual({})
   })
 
-  it('groups each problem under the field it starts with', () => {
+  it('groups each problem under the field it starts with, without the key', () => {
     expect(
-      fieldErrors(['name is required', 'replicas must be at least 1']),
+      fieldErrors(['name is required', 'ttlSeconds must be at least 1']),
     ).toEqual({
-      name: 'name is required',
-      replicas: 'replicas must be at least 1',
+      name: 'is required',
+      ttlSeconds: 'must be at least 1',
     })
   })
 
   it('keeps the first problem when a field has several', () => {
     expect(
       fieldErrors(['replicas must be a number', 'replicas is required']),
-    ).toEqual({ replicas: 'replicas must be a number' })
+    ).toEqual({ replicas: 'must be a number' })
+  })
+
+  it('keeps a one-word problem whole', () => {
+    expect(fieldErrors(['invalid'])).toEqual({ invalid: 'invalid' })
   })
 })
