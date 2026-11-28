@@ -16,6 +16,7 @@ function mockConnection() {
     (status: ReturnType<PresenceConnection['status']>) => void
   >()
   let status: ReturnType<PresenceConnection['status']> = 'open'
+  let clientId = 'self'
   const connection: PresenceConnection = {
     send: vi.fn(),
     on(type, handler) {
@@ -35,7 +36,7 @@ function mockConnection() {
         statuses.delete(handler)
       }
     },
-    clientId: () => 'self',
+    clientId: () => clientId,
   }
   return {
     connection,
@@ -49,6 +50,9 @@ function mockConnection() {
       statuses.forEach((handler) => {
         handler(next)
       })
+    },
+    setClientId: (next: string) => {
+      clientId = next
     },
     listenerCount: () => handlers.size + statuses.size,
   }
@@ -212,8 +216,8 @@ describe('remote presence', () => {
     test.emit(cursor('bob', 40))
     test.emit(cursor('alice', 80))
     expect(test.participants().size).toBe(2)
-    expect(test.participants().get('alice')?.x).toBe(80)
-    expect(previous.get('alice')?.x).toBe(120.5)
+    expect(test.participants().get('alice')?.cursor?.x).toBe(80)
+    expect(previous.get('alice')?.cursor?.x).toBe(120.5)
     expect(test.participants().get('bob')?.name).toBe('Alice')
   })
 
@@ -246,8 +250,9 @@ describe('remote presence', () => {
     expect(test.update).toHaveBeenCalledTimes(calls)
   })
 
-  it('expires at ten seconds and refreshes lastSeen on each cursor', () => {
+  it('expires a cursor after ten seconds without removing the roster member', () => {
     const test = setup()
+    test.emit({ type: 'participants', clientIds: ['self', 'alice'] })
     test.emit(cursor())
     test.emit(cursor('bob'))
     vi.advanceTimersByTime(9000)
@@ -255,9 +260,10 @@ describe('remote presence', () => {
     vi.advanceTimersByTime(999)
     expect(test.participants().size).toBe(2)
     vi.advanceTimersByTime(1)
-    expect([...test.participants().keys()]).toEqual(['bob'])
-    vi.advanceTimersByTime(INACTIVITY_MS - 1000)
-    expect(test.participants().size).toBe(0)
+    expect([...test.participants().keys()]).toEqual(['alice', 'bob'])
+    expect(test.participants().get('alice')?.cursor).toBeNull()
+    expect(test.participants().get('bob')?.cursor).not.toBeNull()
+    expect(toCollaborators(test.participants()).size).toBe(1)
   })
 
   it('expires at ten seconds even when a cursor arrives between whole seconds', () => {
@@ -265,9 +271,9 @@ describe('remote presence', () => {
     vi.advanceTimersByTime(137)
     test.emit(cursor())
     vi.advanceTimersByTime(INACTIVITY_MS - 1)
-    expect(test.participants().size).toBe(1)
+    expect(test.participants().get('alice')?.cursor).not.toBeNull()
     vi.advanceTimersByTime(1)
-    expect(test.participants().size).toBe(0)
+    expect(test.participants().get('alice')?.cursor).toBeNull()
   })
 
   it('ignores self echoes and malformed cursor data', () => {
@@ -284,11 +290,43 @@ describe('remote presence', () => {
   it('clears stale collaborators on disconnect and new welcome', () => {
     const test = setup()
     test.emit(cursor())
+    test.emit({ type: 'participants', clientIds: ['self', 'alice'] })
     test.setStatus('connecting')
     expect(test.participants().size).toBe(0)
     test.setStatus('open')
-    test.emit(cursor())
+    test.setClientId('new-self')
     test.emit({ type: 'welcome', clientId: 'new-self' })
+    expect(test.participants().size).toBe(0)
+    test.emit({ type: 'participants', clientIds: ['new-self', 'new-alice'] })
+    expect([...test.participants().keys()]).toEqual(['new-alice'])
+  })
+
+  it('uses the roster for membership and fallback metadata until a cursor arrives', () => {
+    const test = setup()
+    test.emit({ type: 'participants', clientIds: ['self', 'no-cursor'] })
+    const placeholder = test.participants().get('no-cursor')
+    expect(placeholder?.name).toBe('Guest rsor')
+    expect(placeholder?.color).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(placeholder?.cursor).toBeNull()
+    expect(toCollaborators(test.participants()).size).toBe(0)
+
+    test.emit({ type: 'participants', clientIds: ['self', 'no-cursor', 'new'] })
+    expect(test.participants().get('no-cursor')).toEqual(placeholder)
+    expect(test.participants().has('new')).toBe(true)
+    test.emit(cursor('no-cursor'))
+    expect(test.participants().get('no-cursor')).toMatchObject({
+      name: 'Alice',
+      cursor: { x: 120.5, y: -88.25 },
+    })
+  })
+
+  it('removes membership on updated roster and leave messages', () => {
+    const test = setup()
+    test.emit({ type: 'participants', clientIds: ['self', 'alice', 'bob'] })
+    test.emit(cursor())
+    test.emit({ type: 'participants', clientIds: ['self', 'bob'] })
+    expect([...test.participants().keys()]).toEqual(['bob'])
+    test.emit({ type: 'leave', clientId: 'bob' })
     expect(test.participants().size).toBe(0)
   })
 
@@ -296,7 +334,7 @@ describe('remote presence', () => {
     const test = setup()
     test.session.pointer(point(1))
     test.session.pointer(point(2))
-    expect(test.listenerCount()).toBe(4)
+    expect(test.listenerCount()).toBe(5)
     test.session.dispose()
     const calls = test.update.mock.calls.length
     test.emit(cursor())

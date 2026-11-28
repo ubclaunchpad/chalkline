@@ -54,7 +54,9 @@ describe.each([
   it('renders the same color as the participant identity through the collaborators API', () => {
     const identity = createIdentity('Alice')
     const collaborators = toCollaborators(
-      new Map([['alice', { ...identity, x: 120, y: 80, lastSeen: 0 }]]),
+      new Map([
+        ['alice', { ...identity, cursor: { x: 120, y: 80, lastSeen: 0 } }],
+      ]),
     )
     const [clientId, collaborator] = [...collaborators][0]
     const rendered: unknown = resolve(clientId, collaborator)
