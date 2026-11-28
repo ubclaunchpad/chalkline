@@ -7,16 +7,11 @@ interface SettingInputProps {
   value: string | number
   error?: string
   onCommit: (value: string | number) => void
-  // When set, a text or number box also commits once the user stops typing
-  // for this long, instead of only on blur or Enter.
+  // Also commit this long after typing stops, not only on blur or Enter.
   commitDelayMs?: number
 }
 
-// Number('') is 0, which would quietly save an empty box as 0 for any setting
-// whose minimum allows it. An empty box is not a number, so it becomes NaN and
-// the validator reports 'must be a number'. A number box reports '' for
-// anything that is not a number (including only spaces), so '' is the only
-// case to catch.
+// Number('') is 0; an empty box should fail as 'must be a number' instead.
 function draftToNumber(draft: string): number {
   return draft === '' ? Number.NaN : Number(draft)
 }
@@ -39,19 +34,14 @@ export function SettingInput({
   const [draft, setDraft] = useState<string>(String(value))
   const errorId = `${id}-error`
 
-  // When the saved value changes while this input stays on screen (such as
-  // someone else renaming the component), show the new value. Our own saves
-  // come back equal to the draft, so they change nothing visible.
+  // Show outside changes to the saved value (e.g. a collaborator's edit).
   const [savedValue, setSavedValue] = useState<string | number>(value)
   if (value !== savedValue) {
     setSavedValue(value)
     setDraft(String(value))
   }
 
-  // Only send real changes, so an untouched box does no work. The exception is
-  // a box showing an error whose draft is back at the saved value: committing
-  // it lets the caller clear the error. That save changes nothing, so it does
-  // not bump the element's version or sync an edit.
+  // Skip unchanged values, unless committing one clears an error.
   const commitDraft = () => {
     if (draft === String(value) && !error) {
       return
@@ -59,10 +49,7 @@ export function SettingInput({
     onCommit(setting.type === 'number' ? draftToNumber(draft) : draft)
   }
 
-  // An effect event always sees the latest draft and onCommit without making
-  // the timer restart when they change. onCommit is a new function on every
-  // render, so depending on it would restart the timer after each failed save
-  // and retry forever.
+  // An effect event, so a new onCommit each render doesn't restart the timer.
   const commitAfterPause = useEffectEvent(commitDraft)
 
   useEffect(() => {
@@ -72,8 +59,6 @@ export function SettingInput({
     const timer = setTimeout(() => {
       commitAfterPause()
     }, commitDelayMs)
-    // Typing again before the delay ends cancels this timer and starts a new
-    // one, so only the pause after the last keystroke commits.
     return () => {
       clearTimeout(timer)
     }

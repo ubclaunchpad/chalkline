@@ -22,18 +22,15 @@ import {
   type ComponentChange,
 } from './updateComponent.ts'
 
-// The parts of Excalidraw's API the panel uses, so tests can pass a small fake.
+// Just what the panel uses, so tests can fake it.
 export type PanelApi = Pick<
   ExcalidrawImperativeAPI,
   'getSceneElementsIncludingDeleted' | 'updateScene'
 >
 
 export interface PanelSelection extends SelectedComponent {
-  // id + version, recorded when the selection was read, so onSceneChange can
-  // skip re-rendering when nothing changed. Excalidraw edits elements in
-  // place, so comparing element.version later could compare an object with
-  // itself; a string taken at the time cannot change. It is not used as a
-  // React key: the panel keys inputs by element id so saves keep focus.
+  // id + version, captured as a string because Excalidraw mutates elements.
+  // Only for skipping re-renders; not a React key.
   elementKey: string
 }
 
@@ -47,14 +44,12 @@ export interface ComponentPanel {
   save: (change: ComponentChange) => void
 }
 
-// Connects the property panel to the board: tracks which component is
-// selected and saves panel changes back into the scene.
+// Tracks the selected component and saves panel changes to the scene.
 export function useComponentPanel(api: PanelApi | null): ComponentPanel {
   const [selection, setSelection] = useState<PanelSelection | null>(null)
   const [panelErrors, setPanelErrors] = useState<PanelErrors | null>(null)
 
-  // Runs on every Excalidraw change, including pointer moves, so it only
-  // updates state when the selected element or its version actually changed.
+  // Runs on every change, pointer moves included, so it skips no-op updates.
   const onSceneChange = useCallback(
     (
       elements: readonly OrderedExcalidrawElement[],
@@ -70,12 +65,9 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
           return null
         }
         const elementKey = `${next.element.id}-${String(next.element.version)}`
-        // Returning prev unchanged tells React to skip the re-render.
         return prev?.elementKey === elementKey ? prev : { ...next, elementKey }
       })
 
-      // Drops errors for another element, and errors whose value someone
-      // else has since replaced.
       setPanelErrors((prev: PanelErrors | null) =>
         errorsAfterSceneChange(
           prev,
@@ -92,8 +84,7 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
         return
       }
 
-      // Read the element from the scene now, not from the selection, in case
-      // it changed since the selection was recorded.
+      // Read fresh: the selection's copy may be stale.
       const elements: readonly OrderedExcalidrawElement[] =
         api.getSceneElementsIncludingDeleted()
       const element: OrderedExcalidrawElement | undefined = elements.find(
@@ -114,14 +105,12 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
       }
 
       const updated: OrderedExcalidrawElement = result.element
-      // updateComponent returns the same element when nothing changed.
+      // Same element means nothing changed.
       if (updated === element) {
         return
       }
 
-      // A rename must also change the text drawn on the box, in the same
-      // update, so the board never shows a stale name.
-      // The box may also have grown to fit a longer name.
+      // Relabel (and maybe resize) the box in the same update.
       const relabelled: Relabelled | null = relabelComponent(updated, elements)
       const replacements = new Map<string, OrderedExcalidrawElement>([
         [updated.id, relabelled?.container ?? updated],
@@ -130,7 +119,6 @@ export function useComponentPanel(api: PanelApi | null): ComponentPanel {
         replacements.set(relabelled.label.id, relabelled.label)
       }
 
-      // Scene sync notices the bumped versions and sends them to other clients.
       api.updateScene({
         elements: elements.map(
           (el: OrderedExcalidrawElement) => replacements.get(el.id) ?? el,

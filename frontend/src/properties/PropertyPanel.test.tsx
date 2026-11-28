@@ -123,8 +123,7 @@ describe('PropertyPanel', () => {
 
       expect(onChange).toHaveBeenCalledWith({ name: 'Orders DB' })
 
-      // The save comes back as a new version of the same element. The name
-      // box must survive it, or the user would lose their place mid-word.
+      // The save returns as a new version; the box must survive it.
       rerender(
         <PropertyPanel
           elementId="db"

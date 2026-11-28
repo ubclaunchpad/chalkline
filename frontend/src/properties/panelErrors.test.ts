@@ -19,7 +19,7 @@ const withProps = (props: Partial<typeof database.props>): ComponentData => ({
   props: { ...database.props, ...props },
 })
 
-// Errors after a rejected replicas 0 and a rejected empty name on 'db'.
+// After rejecting replicas 0 and an empty name.
 const failed: PanelErrors = {
   elementId: 'db',
   errors: {

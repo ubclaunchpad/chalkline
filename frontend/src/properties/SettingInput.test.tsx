@@ -183,8 +183,7 @@ describe('SettingInput', () => {
     })
 
     it('commits the saved value again so a stale error can clear', () => {
-      // The user typed 0, the save failed and showed an error, then they typed
-      // the saved value back. Skipping this commit would leave the error up.
+      // After a rejected 0, the user types the saved value back.
       const onCommit = vi.fn()
       render(
         <SettingInput
@@ -287,8 +286,7 @@ describe('SettingInput', () => {
     })
 
     it('does not retry a failed commit while the user is idle', () => {
-      // A rejected value leaves the saved value as it was, and the parent
-      // re-renders with an error and a new onCommit function.
+      // Rejected: same value, but a new error and onCommit.
       const onCommit = vi.fn()
       const { rerender } = renderDelayed(onCommit)
 

@@ -2,26 +2,17 @@ import type { ComponentData } from '../catalog/catalog.ts'
 import { fieldErrors } from './fieldErrors.ts'
 import type { ComponentChange } from './updateComponent.ts'
 
-// The rules for which validation errors the property panel shows. Kept apart
-// from the hook so they can be tested without a board.
-//
-// Fields are named as fieldErrors names them: 'name' or a setting key such as
-// 'replicas'.
+// Which validation errors the panel shows. Fields are 'name' or setting keys.
 
-// A field's saved value: text or a number, or undefined for a name that is
-// not a component field. Always a primitive, so === compares it.
+// Always a primitive, so === compares it.
 type FieldValue = string | number | undefined
 
-// A rejected change, remembered with the field's saved value at the time.
-// Once that value changes (for example a collaborator sets it), the user's
-// rejected draft has been replaced, so the error no longer applies.
+// An error stops applying once its field's saved value changes.
 interface FieldError {
   message: string
   savedValue: FieldValue
 }
 
-// Errors remember which element they are for, so selecting another component
-// does not show the previous one's errors.
 export interface PanelErrors {
   elementId: string
   errors: Readonly<Record<string, FieldError>>
@@ -29,7 +20,6 @@ export interface PanelErrors {
 
 const NO_ERRORS: Readonly<Record<string, string>> = {}
 
-// The fields a change sets.
 function changedFields(change: ComponentChange): string[] {
   const fields: string[] = Object.keys(change.props ?? {})
   if (change.name !== undefined) {
@@ -38,7 +28,6 @@ function changedFields(change: ComponentChange): string[] {
   return fields
 }
 
-// A field's saved value.
 function fieldValue(data: ComponentData | null, field: string): FieldValue {
   if (!data) {
     return undefined
@@ -58,11 +47,7 @@ function withErrors(
   return Object.keys(errors).length > 0 ? { elementId, errors } : null
 }
 
-// The errors after a save of `change` to an element whose saved data was
-// `saved`. `problems` is what the validator rejected, empty when it saved.
-//
-// A save only decides the errors of the fields it changed. Other fields keep
-// theirs, because their boxes may still show a rejected draft.
+// A save only replaces the errors of the fields it changed.
 export function errorsAfterSave(
   prev: PanelErrors | null,
   elementId: string,
@@ -87,12 +72,8 @@ export function errorsAfterSave(
   return withErrors(elementId, errors)
 }
 
-// The errors after the scene changed and `selected` is the selected component
-// (or null). Returns `prev` itself when nothing changed, so React can skip the
-// re-render on the many scene changes that are only pointer moves.
-//
-// Errors are dropped, not just hidden, so one cannot come back later if the
-// value returns to what it was.
+// Drops errors for another element or a replaced value. Returns prev when
+// unchanged, so pointer moves don't re-render.
 export function errorsAfterSceneChange(
   prev: PanelErrors | null,
   selected: { elementId: string; data: ComponentData } | null,
@@ -100,8 +81,6 @@ export function errorsAfterSceneChange(
   if (!prev) {
     return null
   }
-  // Once something else is selected (or nothing), drop them all, so coming
-  // back later starts clean.
   if (prev.elementId !== selected?.elementId) {
     return null
   }
@@ -118,7 +97,6 @@ export function errorsAfterSceneChange(
   return withErrors(prev.elementId, errors)
 }
 
-// The messages to show for the selected element, by field.
 export function visibleErrors(
   panelErrors: PanelErrors | null,
   elementId: string | undefined,

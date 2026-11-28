@@ -142,7 +142,6 @@
   --color-danger: var(--chalkline-color-danger);
 }
 
-/* A panel slides in from the right edge when it appears. */
 @keyframes panel-in {
   from {
     transform: translateX(100%);

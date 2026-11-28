@@ -1,13 +1,5 @@
-// Groups validator problems by the field they belong to, so the panel can show
-// each one next to its input. Every validator message starts with the field's
-// key, e.g. 'replicas must be at least 1' or 'name is required'.
-//
-// The key is removed from the message ('must be at least 1'): the message sits
-// under the input's own label, and users should not see code names such as
-// 'ttlSeconds'.
-//
-// Problems that are not about a field (such as 'element is not a component')
-// end up under words no input uses, so the panel does not show them.
+// Groups validator problems by their leading field key, with the key removed
+// ('replicas must be at least 1' -> replicas: 'must be at least 1').
 export function fieldErrors(
   problems: readonly string[],
 ): Record<string, string> {

@@ -7,10 +7,7 @@ import type { ComponentData } from '../catalog/catalog.ts'
 import { changedElements } from '../realtime/sceneSync.ts'
 import { useComponentPanel, type PanelApi } from './useComponentPanel.ts'
 
-// The real package needs a browser canvas to load, so stand in for it.
-// newElementWith copies the element, applies the updates and bumps the
-// version. convertToExcalidrawElements is set per test where a rename needs
-// the label "measured".
+// Excalidraw needs a canvas, so fake it. Rename tests set the "measuring".
 vi.mock('@excalidraw/excalidraw', () => ({
   newElementWith: vi.fn(
     (element: OrderedExcalidrawElement, updates: object) => ({
@@ -297,8 +294,6 @@ describe('useComponentPanel save', () => {
     act(() => {
       hook.result.current.save({ props: { replicas: 0 } })
     })
-    // Leaving and coming back resets the inputs to the saved values, so the
-    // error about the rejected value no longer applies.
     select(hook, ['cache'])
     select(hook, ['db'])
 
@@ -319,8 +314,6 @@ describe('useComponentPanel save', () => {
   })
 
   it("keeps a field's error when a different field saves", () => {
-    // The Replicas box still shows the rejected 0, so its error must stay
-    // after an unrelated setting saves.
     const { result } = renderPanel(fakeApi(board), ['db'])
 
     act(() => {
@@ -376,8 +369,7 @@ describe('useComponentPanel save', () => {
       hook.result.current.save({ name: '' })
     })
 
-    // A collaborator sets replicas to 4. The box now shows 4, so the error
-    // about the rejected 0 no longer applies. The name was not touched.
+    // A collaborator sets replicas to 4.
     const edited = box({
       id: 'db',
       customData: { ...database, props: { engine: 'PostgreSQL', replicas: 4 } },
@@ -422,8 +414,7 @@ describe('useComponentPanel save', () => {
       hook.result.current.save({ props: { replicas: 0 } })
     })
 
-    // A collaborator sets replicas to 4, then back to 1. The rejected 0 is
-    // long gone from the box, so the old error must not reappear.
+    // A collaborator sets replicas to 4, then back to 1.
     const remoteReplicas = (replicas: number, version: number) => {
       const edited = box({
         id: 'db',

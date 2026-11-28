@@ -7,21 +7,19 @@ import {
 import { SettingInput } from './SettingInput.tsx'
 import type { ComponentChange } from './updateComponent.ts'
 
-// How long the name waits after the last keystroke before saving.
+// Name saves this long after the last keystroke.
 export const NAME_COMMIT_DELAY_MS = 300
 
 interface PropertyPanelProps {
-  // Changes only when a different element is selected, which restarts the
-  // inputs. Edits to the same element do not, so focus and drafts survive.
+  // A new id resets the inputs; a new version does not.
   elementId: string
   data: ComponentData
-  // Problems to show, by field: 'name' or a setting key such as 'replicas'.
+  // By field: 'name' or a setting key.
   errors: Readonly<Record<string, string>>
   onChange: (change: ComponentChange) => void
 }
 
-// The name is not a catalog setting, but it edits like a text setting, so it
-// reuses the same input.
+// Name isn't a catalog setting but edits like a text one.
 const nameSetting: SettingDefinition = {
   type: 'text',
   label: 'Name',
@@ -52,11 +50,7 @@ export function PropertyPanel({
         <p className="text-xs text-ink-muted">{kind.description}</p>
       </div>
 
-      {/* Every input is keyed by element and field, not by element version.
-          Each save (ours or a collaborator's) makes a new version, and keying
-          by it would rebuild every input, dropping focus and any half-typed
-          draft. SettingInput follows outside changes to its own value instead,
-          so only the field that changed shows something new. */}
+      {/* Keyed by element, not version, so saves keep focus and drafts. */}
       <SettingInput
         key={`${elementId}-name`}
         id="component-name"

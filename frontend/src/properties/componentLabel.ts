@@ -8,16 +8,12 @@ import { componentLabelText } from './labelText.ts'
 import { readComponent } from './updateComponent.ts'
 
 export interface Relabelled {
-  // The label with its new text, wrapped and sized to fit the box.
   label: OrderedExcalidrawElement
-  // The box, made taller (or wider) if the new text needed more room;
-  // otherwise the same element that was passed in.
+  // Resized if the text needed room; otherwise the same element.
   container: OrderedExcalidrawElement
 }
 
-// Returns the component's label updated to match the component's current
-// data, or null when there is nothing to update: no bound label, or the label
-// already shows the right text (so no needless version bump).
+// The label (and box) updated to the component's name, or null if unchanged.
 export function relabelComponent(
   container: OrderedExcalidrawElement,
   elements: readonly OrderedExcalidrawElement[],
@@ -27,7 +23,7 @@ export function relabelComponent(
     return null
   }
 
-  // The throwaway copy is built as a box, which only works for these shapes.
+  // The measuring copy only works for these shapes.
   if (
     container.type !== 'rectangle' &&
     container.type !== 'diamond' &&
@@ -51,11 +47,8 @@ export function relabelComponent(
     return null
   }
 
-  // Excalidraw does not export its text measuring, but building a shape with
-  // a label measures, wraps and centres the text. So build a throwaway copy of
-  // the box with the new text, read the measurements off it, and apply only
-  // those to the real elements. The real ones keep their ids, so arrows,
-  // selection and sync still point at them.
+  // Excalidraw doesn't export text measuring, so measure a throwaway copy and
+  // copy its sizes onto the real elements, which keep their ids.
   const measured: readonly OrderedExcalidrawElement[] =
     convertToExcalidrawElements([
       {
@@ -85,8 +78,7 @@ export function relabelComponent(
   }
 
   const updatedLabel: OrderedExcalidrawElement = newElementWith(label, {
-    // text has line breaks added where Excalidraw wrapped it; originalText
-    // keeps what was written, which Excalidraw re-wraps if the box resizes.
+    // text is wrapped; originalText is re-wrapped if the box resizes.
     text: measuredLabel.text,
     originalText: text,
     x: measuredLabel.x,
@@ -95,7 +87,6 @@ export function relabelComponent(
     height: measuredLabel.height,
   })
 
-  // Excalidraw grows the box when the text does not fit inside it.
   const resized: boolean =
     measuredBox.width !== container.width ||
     measuredBox.height !== container.height

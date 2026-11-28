@@ -8,10 +8,7 @@ import type { ComponentData } from '../catalog/catalog.ts'
 import { changedElements } from '../realtime/sceneSync.ts'
 import { relabelComponent } from './componentLabel.ts'
 
-// The real package needs a browser canvas to load, so stand in for it.
-// newElementWith copies the element, applies the updates and bumps the
-// version. convertToExcalidrawElements returns whatever each test sets, which
-// plays the part of Excalidraw's measured copy of the box and label.
+// Excalidraw needs a canvas, so fake it. Each test sets the "measuring".
 vi.mock('@excalidraw/excalidraw', () => ({
   newElementWith: vi.fn(
     (element: OrderedExcalidrawElement, updates: object) => ({
@@ -93,8 +90,7 @@ const label = (text: string, isDeleted = false): TextElement => ({
   lineHeight: 1.25 as TextElement['lineHeight'],
 })
 
-// Makes the fake Excalidraw "measure" the new label: wrapped text, a size and
-// a position, plus the box height Excalidraw would need to fit it.
+// Sets what the fake measuring returns for the label and box.
 function measuresAs({
   text,
   boxHeight = base.height,
@@ -136,8 +132,7 @@ describe('relabelComponent', () => {
       height: 50,
       version: 2,
     })
-    // Check against sync's own rule, so this fails if the new label would not
-    // be sent to other clients.
+    // Sync must see the label as changed.
     expect(changedElements([oldLabel], [result.label])).toEqual([result.label])
   })
 
@@ -147,7 +142,6 @@ describe('relabelComponent', () => {
 
     relabelComponent(container, [container, label('Users DB\ndatabase')])
 
-    // The skeletons the throwaway copy was built from.
     const skeletons = vi.mocked(convertToExcalidrawElements).mock.calls[0][0]
 
     expect(skeletons).toMatchObject([
