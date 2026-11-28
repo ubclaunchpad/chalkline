@@ -26,8 +26,8 @@ The frontend uses React, strict TypeScript, Tailwind, a design system built with
 ```
 
 - **Nodes:** each live element whose `customData` passes `validateComponent` (see the [component catalog](catalog.md)). Component data belongs on the container shape, not its text label, because arrows bind to the container.
-- **Edges:** each live arrow whose `startBinding` and `endBinding` both point at nodes. An edge runs from the arrow's start to its end, whatever its arrowheads look like, so two-way traffic needs two arrows.
-- **Ignored:** plain shapes, freehand drawings, deleted elements, and arrows with no valid end.
+- **Edges:** each live arrow whose `startBinding` and `endBinding` both point at nodes. An edge runs from the arrow's start to its end, whatever its arrowheads look like, so two-way traffic needs two arrows. An arrow bound to a component card's icon or text counts as bound to that card (see [Component cards](catalog.md#component-cards)).
+- **Ignored:** plain shapes, freehand drawings, deleted elements, arrows with no valid end, and any element whose `customData` has an `annotation` field. Annotations are decoration, such as the icon and text drawn on a component card, and never become nodes or diagnostics.
 - **Diagnostics:** malformed `customData` reports the validator's problems, and an arrow with exactly one valid end reports which end is not connected, so later feedback can explain what was left out.
 
 Elements are processed in ID order, so the same scene gives the same graph regardless of element order.

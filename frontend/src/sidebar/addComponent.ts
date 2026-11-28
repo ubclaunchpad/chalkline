@@ -6,7 +6,8 @@ import {
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
 import {
   collectComponentNames,
-  createComponentSkeleton,
+  createComponentSkeletons,
+  finishComponentElements,
   type ScenePoint,
 } from './createComponent'
 import type { CatalogEntry } from './catalog'
@@ -43,8 +44,10 @@ function addComponentAtScenePoint(
   center: ScenePoint,
 ): void {
   const existingNames = collectComponentNames(api.getSceneElements())
-  const skeleton = createComponentSkeleton(entry, center, existingNames)
-  const newElements = convertToExcalidrawElements([skeleton])
+  const skeletons = createComponentSkeletons(entry, center, existingNames)
+  const newElements = finishComponentElements(
+    convertToExcalidrawElements(skeletons),
+  )
 
   api.updateScene({
     elements: [...api.getSceneElementsIncludingDeleted(), ...newElements],

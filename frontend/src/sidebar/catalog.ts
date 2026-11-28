@@ -100,9 +100,5 @@ export const catalog: readonly CatalogEntry[] = Object.entries(CATALOG).map(
   },
 )
 
-/** Size of a newly placed component, in scene units. */
-export const COMPONENT_WIDTH = 180
-export const COMPONENT_HEIGHT = 100
-
 /** `dataTransfer` type used to carry a dragged kind onto the canvas. */
 export const COMPONENT_DRAG_MIME = 'application/x-chalkline-kind'

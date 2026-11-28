@@ -16,6 +16,7 @@ function channelDistance(left: string, right: string): number {
 describe('canvasColor', () => {
   // Dark-theme tokens from index.css that cards draw on the canvas.
   it.each([
+    ['surface', '#1f2839'],
     ['surface-raised', '#283349'],
     ['border', '#2b3650'],
     ['ink-muted', '#a9b6cf'],

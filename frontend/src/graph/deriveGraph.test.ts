@@ -271,3 +271,78 @@ describe('determinism', () => {
     ).toBe(expected)
   })
 })
+
+describe('component cards', () => {
+  // A card is a group: the component container plus decorations marked with
+  // an annotation (see cards/cardParts.ts).
+  const inGroup = <T extends ExcalidrawElement>(
+    element: T,
+    group: string,
+  ): T => ({ ...element, groupIds: [group] })
+  const cardPart = (id: string, group: string, part: string) =>
+    inGroup(
+      rectangle(id, { customData: { v: 1, annotation: 'card', part } }),
+      group,
+    )
+  const card = (id: string, group: string) => [
+    inGroup(service(id), group),
+    cardPart(`${id}-icon`, group, 'icon'),
+    cardPart(`${id}-name`, group, 'name'),
+    cardPart(`${id}-detail`, group, 'detail'),
+  ]
+
+  it('makes one node per card and no diagnostics for its decorations', () => {
+    const graph = deriveGraph(card('api', 'g1'))
+
+    expect(Object.keys(graph.nodes)).toEqual(['api'])
+    expect(graph.diagnostics).toEqual([])
+  })
+
+  it('skips any element with an annotation', () => {
+    const scene = [
+      rectangle('vpc', { customData: { v: 1, annotation: 'group' } }),
+    ]
+
+    expect(deriveGraph(scene)).toEqual(emptyGraph)
+  })
+
+  it('connects arrows bound to the card container', () => {
+    const scene = [
+      ...card('api', 'g1'),
+      ...card('db', 'g2'),
+      arrow('a1', { start: 'api', end: 'db' }),
+    ]
+
+    expect(deriveGraph(scene).edges).toEqual({
+      a1: { id: 'a1', source: 'api', target: 'db' },
+    })
+  })
+
+  it('treats an arrow bound to a card decoration as bound to the card', () => {
+    const scene = [
+      ...card('api', 'g1'),
+      ...card('db', 'g2'),
+      arrow('a1', { start: 'api-name', end: 'db-icon' }),
+    ]
+
+    expect(deriveGraph(scene)).toMatchObject({
+      edges: { a1: { id: 'a1', source: 'api', target: 'db' } },
+      diagnostics: [],
+    })
+  })
+
+  it('does not connect a decoration whose card was deleted', () => {
+    const [container, ...parts] = card('api', 'g1')
+    const scene = [
+      { ...container, isDeleted: true },
+      ...parts,
+      database('db'),
+      arrow('a1', { start: 'api-name', end: 'db' }),
+    ]
+
+    expect(deriveGraph(scene)).toMatchObject({
+      edges: {},
+      diagnostics: [{ elementId: 'a1', message: START_PROBLEM }],
+    })
+  })
+})
