@@ -22,6 +22,23 @@ Each component is an Excalidraw shape whose `customData` holds:
 
 `validateComponent(value)` checks untrusted data, such as data from another client or a saved board, and returns either the data or a list of plain-English problems like `replicas must be at least 1`.
 
+## Component cards
+
+A component added from the sidebar is drawn as a card, built in [`frontend/src/sidebar/createComponent.ts`](../frontend/src/sidebar/createComponent.ts) with the look in [`frontend/src/cards/cardLook.ts`](../frontend/src/cards/cardLook.ts). The card is one Excalidraw group of four elements:
+
+- **Container:** a rectangle holding the component data above. Arrows bind to it, and it is the only part that becomes a graph node.
+- **Icon, name and detail line:** a locked image and two locked text elements. Locking keeps arrows from binding to them. Their `customData` marks them as decoration, so the graph skips them:
+
+```json
+{ "v": 1, "annotation": "card", "part": "name" }
+```
+
+`part` is `icon`, `name` or `detail`. The name line shows the component's name, and the detail line shows `describeComponent` (for example `PostgreSQL · 1 replica`). Both are shortened with "…" by character count, so every browser shows the same text; the full name stays in the component data.
+
+Changing a name or setting goes through `applyComponentChange` in [`frontend/src/cards/applyComponentChange.ts`](../frontend/src/cards/applyComponentChange.ts). It validates the change and rewrites the card's text in the same update. Double-clicking a card's name opens a small rename box over it. Clicking a card with the Text tool, or pressing Enter with a card selected, does not add a text label inside it; a double-tap on a touch screen and the right-click "Bind text" action still can. Components on boards made before cards (plain coloured rectangles) are left as they are.
+
+Icons are image files that every browser registers when the board opens, because live sync sends elements but not files. In dark theme Excalidraw inverts canvas colours, so card colours go through `canvasColor` in [`frontend/src/design/canvasColor.ts`](../frontend/src/design/canvasColor.ts); colours with a channel above about 237 or below about 18 (out of 255) can only be approximated.
+
 ## Kinds
 
 | Kind                                        | Settings (default)                                                                                                                                           | When to use it                                                                                                                                                                                         |
