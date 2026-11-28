@@ -10,13 +10,14 @@ import type {
   ExcalidrawTextElement,
   OrderedExcalidrawElement,
 } from '@excalidraw/excalidraw/element/types'
+import type { ComponentData } from '../catalog/catalog.ts'
 import {
   readComponent,
   updateComponent,
   type ComponentChange,
 } from '../properties/updateComponent.ts'
 import { cardTexts } from './cardLook.ts'
-import { findCardParts } from './cardParts.ts'
+import { findCardParts, type CardPart } from './cardParts.ts'
 
 export type ChangeResult =
   | { ok: true; elements: OrderedExcalidrawElement[] }
@@ -34,10 +35,14 @@ export function refreshCardText(
   container: OrderedExcalidrawElement,
 ): OrderedExcalidrawElement[] {
   const data = readComponent(container)
-  if (!data) {
-    return []
-  }
-  const parts = findCardParts(elements, container)
+  return data ? rewriteCardText(findCardParts(elements, container), data) : []
+}
+
+/** The given name and detail parts whose text differs from `data`, rewritten. */
+export function rewriteCardText(
+  parts: Partial<Record<CardPart, OrderedExcalidrawElement>>,
+  data: ComponentData,
+): OrderedExcalidrawElement[] {
   const texts = cardTexts(data)
   const changed: OrderedExcalidrawElement[] = []
 
