@@ -414,6 +414,55 @@ describe('useComponentPanel save', () => {
     })
   })
 
+  it('does not bring an error back when the value later returns', () => {
+    const fake = fakeApi(board)
+    const hook = renderPanel(fake, ['db'])
+
+    act(() => {
+      hook.result.current.save({ props: { replicas: 0 } })
+    })
+
+    // A collaborator sets replicas to 4, then back to 1. The rejected 0 is
+    // long gone from the box, so the old error must not reappear.
+    const remoteReplicas = (replicas: number, version: number) => {
+      const edited = box({
+        id: 'db',
+        customData: { ...database, props: { engine: 'PostgreSQL', replicas } },
+        labelId: 'db-label',
+        version,
+      })
+      const scene = [edited, dbLabel, cacheBox, plainBox]
+      fake.setScene(scene)
+      select(hook, ['db'], scene)
+    }
+    remoteReplicas(4, 2)
+    remoteReplicas(1, 3)
+
+    expect(hook.result.current.errors).toEqual({})
+  })
+
+  it('drops a name error once someone else renames the component', () => {
+    const fake = fakeApi(board)
+    const hook = renderPanel(fake, ['db'])
+
+    act(() => {
+      hook.result.current.save({ name: '' })
+    })
+    expect(hook.result.current.errors).toEqual({ name: 'is required' })
+
+    const renamed = box({
+      id: 'db',
+      customData: { ...database, name: 'Orders DB' },
+      labelId: 'db-label',
+      version: 2,
+    })
+    const scene = [renamed, dbLabel, cacheBox, plainBox]
+    fake.setScene(scene)
+    select(hook, ['db'], scene)
+
+    expect(hook.result.current.errors).toEqual({})
+  })
+
   it('does not update the scene when nothing changed', () => {
     const fake = fakeApi(board)
     const { result } = renderPanel(fake, ['db'])
