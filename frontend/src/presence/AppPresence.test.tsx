@@ -20,6 +20,7 @@ vi.mock('@excalidraw/excalidraw', async () => {
     Excalidraw: ({ excalidrawAPI, renderTopRightUI }: ExcalidrawProps) => {
       useEffect(() => {
         excalidrawAPI?.({
+          addFiles: () => undefined,
           getAppState: () => ({ activeTool: { type: 'selection' } }),
           getSceneElementsIncludingDeleted: () => [],
           onChange: () => () => undefined,

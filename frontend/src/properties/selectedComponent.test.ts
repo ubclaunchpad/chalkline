@@ -99,4 +99,34 @@ describe('selectedComponent', () => {
 
     expect(selectedComponent([deleted], { deleted: true })).toBeNull()
   })
+
+  it('returns the component when its whole card is selected as a group', () => {
+    const inCard = (element: RectangleElement): RectangleElement => ({
+      ...element,
+      groupIds: ['card-1'],
+    })
+    const container = inCard(
+      rectangle({ id: 'box', customData: validDatabase }),
+    )
+    const name = inCard(
+      rectangle({
+        id: 'name',
+        customData: { v: 1, annotation: 'card', part: 'name' },
+      }),
+    )
+    const icon = inCard(
+      rectangle({
+        id: 'icon',
+        customData: { v: 1, annotation: 'card', part: 'icon' },
+      }),
+    )
+
+    expect(
+      selectedComponent([container, name, icon], {
+        box: true,
+        name: true,
+        icon: true,
+      }),
+    ).toEqual({ element: container, data: validDatabase })
+  })
 })

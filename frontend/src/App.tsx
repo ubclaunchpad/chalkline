@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { ComponentCards } from './cards/ComponentCards'
 import { DEFAULT_THEME } from './design/theme'
 import { BoardLayout } from './layout/BoardLayout'
 import { TopBar } from './layout/TopBar'
@@ -99,6 +100,7 @@ function BoardCanvas() {
           componentsOpen={componentsOpen}
           onToggleComponents={toggleComponents}
         />
+        <ComponentCards api={excalidrawApi} canvasRef={canvasRef} />
       </div>
       {!identity && (
         <NameDialog

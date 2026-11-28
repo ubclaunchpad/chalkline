@@ -1,8 +1,23 @@
 // Sidebar-facing view over the shared component catalog (#30): adds what
-// the sidebar needs and the catalog doesn't define — a placeholder color
-// per kind (real icons come from #33) and each kind's default settings
-// flattened into a props object ready for `customData`.
+// the sidebar and the board need and the catalog doesn't define — a
+// placeholder color per kind, the kind's Figma icon, and each kind's default
+// settings flattened into a props object ready for `customData`.
 
+import apiGatewayIcon from '../assets/icons/api_gateway.svg?raw'
+import authIcon from '../assets/icons/auth.svg?raw'
+import cacheIcon from '../assets/icons/cache.svg?raw'
+import cdnIcon from '../assets/icons/cdn.svg?raw'
+import clientIcon from '../assets/icons/client_web.svg?raw'
+import databaseIcon from '../assets/icons/database.svg?raw'
+import externalServiceIcon from '../assets/icons/external_service.svg?raw'
+import loadBalancerIcon from '../assets/icons/load_balancer.svg?raw'
+import monitoringIcon from '../assets/icons/monitoring.svg?raw'
+import objectStorageIcon from '../assets/icons/object_storage.svg?raw'
+import pubsubIcon from '../assets/icons/pubsub.svg?raw'
+import queueIcon from '../assets/icons/queue.svg?raw'
+import schedulerIcon from '../assets/icons/scheduler.svg?raw'
+import serverlessFunctionIcon from '../assets/icons/serverless_function.svg?raw'
+import serviceIcon from '../assets/icons/service.svg?raw'
 import {
   CATALOG,
   type ComponentKind,
@@ -20,10 +35,12 @@ export interface CatalogEntry {
   label: string
   description: string
   color: string
+  /** SVG markup of the kind's Figma icon; its strokes use `currentColor`. */
+  icon: string
   defaultProps: Record<string, unknown>
 }
 
-// Placeholder colors per kind until #33 ships real icons.
+// Placeholder colors per kind until design approves real ones (#86).
 const KIND_COLORS: Readonly<Record<ComponentKind, string>> = {
   client: '#868e96',
   cdn: '#20c997',
@@ -42,6 +59,26 @@ const KIND_COLORS: Readonly<Record<ComponentKind, string>> = {
   monitoring: '#b197fc',
 }
 
+// Icons exported from the Figma icon set (#76). Client has web and mobile
+// variants; the kind uses the web one.
+const KIND_ICONS: Readonly<Record<ComponentKind, string>> = {
+  client: clientIcon,
+  cdn: cdnIcon,
+  load_balancer: loadBalancerIcon,
+  api_gateway: apiGatewayIcon,
+  service: serviceIcon,
+  database: databaseIcon,
+  cache: cacheIcon,
+  queue: queueIcon,
+  object_storage: objectStorageIcon,
+  serverless_function: serverlessFunctionIcon,
+  pubsub: pubsubIcon,
+  auth: authIcon,
+  external_service: externalServiceIcon,
+  scheduler: schedulerIcon,
+  monitoring: monitoringIcon,
+}
+
 function defaultPropsFor(kind: ComponentKind): Record<string, unknown> {
   const settings: KindDefinition['settings'] = CATALOG[kind].settings
   return Object.fromEntries(
@@ -57,14 +94,11 @@ export const catalog: readonly CatalogEntry[] = Object.entries(CATALOG).map(
       label: definition.label,
       description: definition.description,
       color: KIND_COLORS[componentKind],
+      icon: KIND_ICONS[componentKind],
       defaultProps: defaultPropsFor(componentKind),
     }
   },
 )
-
-/** Size of a newly placed component, in scene units. */
-export const COMPONENT_WIDTH = 180
-export const COMPONENT_HEIGHT = 100
 
 /** `dataTransfer` type used to carry a dragged kind onto the canvas. */
 export const COMPONENT_DRAG_MIME = 'application/x-chalkline-kind'

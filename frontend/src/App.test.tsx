@@ -23,6 +23,7 @@ const mockExcalidraw = vi.hoisted(() => {
 
   return {
     api: {
+      addFiles: () => undefined,
       getAppState: () => ({ activeTool: { type: 'selection' } }),
       getSceneElementsIncludingDeleted: () => scene,
       onChange: () => () => undefined,
