@@ -26,6 +26,7 @@ export function ParticipantAvatars({
       id: 'self',
       name: identity.name,
       accessibleName: `${identity.name} (you)`,
+      color: identity.color,
     },
     ...[...participants]
       .sort(([left], [right]) => left.localeCompare(right))
@@ -33,6 +34,7 @@ export function ParticipantAvatars({
         id,
         name: participant.name,
         accessibleName: participant.name,
+        color: participant.color,
       })),
   ]
   const visible = people.slice(0, MAX_VISIBLE_PARTICIPANTS)
@@ -50,6 +52,7 @@ export function ParticipantAvatars({
           title={person.accessibleName}
           className="flex size-8 items-center justify-center rounded-full border-2 border-bg bg-surface-selected text-xs font-extrabold text-accent shadow-sm"
           style={{
+            backgroundColor: person.color,
             marginLeft: index === 0 ? 0 : '-0.375rem',
             zIndex: visible.length - index,
           }}

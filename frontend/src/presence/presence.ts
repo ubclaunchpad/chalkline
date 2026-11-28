@@ -5,7 +5,7 @@ import type {
 } from '@excalidraw/excalidraw/types'
 import type { ClientMessage, ServerMessage } from '../realtime/messages'
 import type { Identity } from './identity'
-import { COLORS } from './identity'
+import { COLORS, colorForName } from './identity'
 
 // Subset of #27's shared connection. No socket is owned by presence.
 export interface PresenceConnection {
@@ -22,6 +22,10 @@ export interface PresenceConnection {
 }
 
 export interface Participant extends Identity {
+  cursor: Cursor | null
+}
+
+interface Cursor {
   x: number
   y: number
   lastSeen: number
@@ -36,16 +40,17 @@ type Pointer = Parameters<
 export function toCollaborators(
   participants: ReadonlyMap<string, Participant>,
 ) {
-  return new Map<SocketId, Collaborator>(
-    [...participants].map(([clientId, participant]) => [
-      clientId as SocketId,
-      {
-        username: participant.name,
-        color: { background: participant.color, stroke: participant.color },
-        pointer: { x: participant.x, y: participant.y, tool: 'pointer' },
-      },
-    ]),
-  )
+  const collaborators = new Map<SocketId, Collaborator>()
+  for (const [clientId, participant] of participants) {
+    const cursor = participant.cursor
+    if (!cursor) continue
+    collaborators.set(clientId as SocketId, {
+      username: participant.name,
+      color: { background: participant.color, stroke: participant.color },
+      pointer: { x: cursor.x, y: cursor.y, tool: 'pointer' },
+    })
+  }
+  return collaborators
 }
 
 export function startPresence(
@@ -64,21 +69,34 @@ export function startPresence(
   const publish = () => {
     onChange(new Map(participants))
   }
+  const placeholder = (clientId: string): Participant => {
+    const name = `Guest ${clientId.slice(-4)}`
+    return { name, color: colorForName(name), cursor: null }
+  }
   publish()
   const scheduleExpiry = () => {
     clearTimeout(expiryTimer)
     if (disposed || !participants.size) return
     let nextExpiry = Infinity
     for (const participant of participants.values()) {
-      nextExpiry = Math.min(nextExpiry, participant.lastSeen + INACTIVITY_MS)
+      if (participant.cursor)
+        nextExpiry = Math.min(
+          nextExpiry,
+          participant.cursor.lastSeen + INACTIVITY_MS,
+        )
     }
+    if (nextExpiry === Infinity) return
     expiryTimer = setTimeout(
       () => {
         if (disposed) return
         const now = performance.now()
         for (const [clientId, participant] of participants) {
-          if (now - participant.lastSeen >= INACTIVITY_MS)
-            participants.delete(clientId)
+          if (
+            participant.cursor &&
+            now - participant.cursor.lastSeen >= INACTIVITY_MS
+          ) {
+            participants.set(clientId, { ...participant, cursor: null })
+          }
         }
         publish()
         scheduleExpiry()
@@ -115,6 +133,21 @@ export function startPresence(
     lastSentAt = performance.now()
   }
   const unsubscribe = [
+    connection.on('participants', ({ clientIds }) => {
+      if (disposed) return
+      const selfId = connection.clientId()
+      const next = new Map<string, Participant>()
+      for (const clientId of clientIds) {
+        if (clientId === selfId) continue
+        next.set(clientId, participants.get(clientId) ?? placeholder(clientId))
+      }
+      participants.clear()
+      next.forEach((participant, clientId) => {
+        participants.set(clientId, participant)
+      })
+      publish()
+      scheduleExpiry()
+    }),
     connection.on('cursor', (message) => {
       if (
         disposed ||
@@ -129,9 +162,7 @@ export function startPresence(
       participants.set(message.from, {
         name: message.name,
         color: message.color,
-        x: message.x,
-        y: message.y,
-        lastSeen: performance.now(),
+        cursor: { x: message.x, y: message.y, lastSeen: performance.now() },
       })
       publish()
       scheduleExpiry()

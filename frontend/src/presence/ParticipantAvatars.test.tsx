@@ -9,9 +9,7 @@ afterEach(cleanup)
 const participant = (name: string, color: string): Participant => ({
   name,
   color,
-  x: 10,
-  y: 20,
-  lastSeen: 1,
+  cursor: { x: 10, y: 20, lastSeen: 1 },
 })
 
 describe('ParticipantAvatars', () => {
@@ -37,7 +35,10 @@ describe('ParticipantAvatars', () => {
     )
     expect(
       screen.getByLabelText('Anson Chan (you)').style.backgroundColor,
-    ).toBe('')
+    ).toBe('rgb(47, 158, 68)')
+    expect(screen.getByLabelText('Ada Vale').style.backgroundColor).toBe(
+      'rgb(224, 49, 49)',
+    )
     expect(screen.getByText('AC')).toBeDefined()
     expect(screen.getByText('AV')).toBeDefined()
     expect(screen.queryByText('A(')).toBeNull()
